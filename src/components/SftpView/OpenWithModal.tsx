@@ -57,14 +57,20 @@ export function OpenWithModal({
 
   const handleBrowse = useCallback(async () => {
     try {
+      const isMac = navigator.platform?.startsWith("Mac") || false;
       const picked = await open({
         title: "选择程序",
-        filters: [{ name: "可执行程序", extensions: ["exe"] }],
+        filters: [
+          {
+            name: "可执行程序",
+            extensions: isMac ? ["app"] : ["exe"],
+          },
+        ],
       });
       if (picked && typeof picked === "string") {
         const base = picked.split(/[\\/]/).pop() || picked;
         const app: OpenWithApp = {
-          name: base.replace(/\.exe$/i, ""),
+          name: base.replace(/\.app$/i, "").replace(/\.exe$/i, ""),
           path: picked,
         };
         setApps((prev) => [...prev, app]);
