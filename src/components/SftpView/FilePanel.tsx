@@ -85,6 +85,7 @@ export function FilePanel({
   const setSettings = useSettingsStore((s) => s.setSettings);
   const removeDefaultApp = useSettingsStore((s) => s.removeDefaultApp);
   const askConfirm = useUiStore((s) => s.askConfirm);
+  const askPrompt = useUiStore((s) => s.askPrompt);
 
   const load = useCallback(
     async (path: string) => {
@@ -260,7 +261,7 @@ export function FilePanel({
 
   // 右键菜单操作
   const newFolder = async () => {
-    const name = prompt("新建文件夹名称：");
+    const name = await askPrompt({ title: "新建文件夹", message: "请输入文件夹名称", placeholder: "新建文件夹" });
     if (!name) return;
     try {
       const newPath = joinPath(currentPath, name);
@@ -277,7 +278,7 @@ export function FilePanel({
   };
 
   const newFile = async () => {
-    const name = prompt("新建文件名称：");
+    const name = await askPrompt({ title: "新建文件", message: "请输入文件名称", placeholder: "新建文件" });
     if (!name) return;
     try {
       const newPath = joinPath(currentPath, name);
@@ -296,7 +297,7 @@ export function FilePanel({
   const refresh = () => load(currentPath);
 
   const renameItem = async (item: FileEntry) => {
-    const newName = prompt("新名称：", item.name);
+    const newName = await askPrompt({ title: "重命名", message: "请输入新名称", defaultValue: item.name });
     if (!newName || newName === item.name) return;
     try {
       const from = item.path;
@@ -345,7 +346,7 @@ export function FilePanel({
       suggest = `${stem} 副本 ${i}${ext}`;
     }
 
-    const newName = prompt("副本名称：", suggest);
+    const newName = await askPrompt({ title: "复制副本", message: "请输入副本名称", defaultValue: suggest });
     if (!newName || newName === item.name) return;
 
     const to = joinPath(dir, newName);

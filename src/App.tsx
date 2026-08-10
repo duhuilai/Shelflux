@@ -9,6 +9,7 @@ import { ServerPicker } from "./components/ServerPicker/ServerPicker";
 import { Settings } from "./components/Settings/Settings";
 import { ForwardPanel } from "./components/Forward/ForwardPanel";
 import { ConfirmDialog } from "./components/Common/ConfirmDialog";
+import { PromptDialog } from "./components/Common/PromptDialog";
 import { useUiStore } from "./stores/uiStore";
 import { useTabStore } from "./stores/tabStore";
 import { useSettingsStore, resolveTheme } from "./stores/settingsStore";
@@ -218,11 +219,6 @@ export default function App() {
 
   return (
     <div className="window">
-      {/* 标题栏 */}
-      <div className="titlebar">
-        <div className="titlebar-title">Shelflux</div>
-      </div>
-
       {/* Main Layout */}
       <div className="main">
         {/* Sidebar */}
@@ -241,6 +237,7 @@ export default function App() {
       {forwardPanelOpen && <ForwardPanel onClose={closeForwardPanel} />}
 
       <ConfirmDialog />
+      <PromptDialog />
       <ToastContainer />
       <ContextMenu />
     </div>

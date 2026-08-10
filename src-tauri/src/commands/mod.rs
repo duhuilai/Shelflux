@@ -6,3 +6,4 @@ pub mod proxy;
 pub mod sftp;
 pub mod ssh;
 pub mod system;
+pub mod update;

@@ -3,7 +3,7 @@ import { useUiStore } from "../../stores/uiStore";
 import { useServerStore } from "../../stores/serverStore";
 import { toast } from "../../stores/toastStore";
 import { parseImportPayload } from "../../utils/importExport";
-import iconUrl from "/icon.svg";
+import logoUrl from "/logo.png";
 
 export function EmptyState() {
   const openServerForm = useUiStore((s) => s.openServerForm);
@@ -30,7 +30,7 @@ export function EmptyState() {
 
   return (
     <div className="empty-state">
-      <img className="empty-state-logo" src={iconUrl} alt="Shelflux" />
+      <img className="empty-state-logo" src={logoUrl} alt="Shelflux" />
       <div className="empty-state-title">Shelflux</div>
       <div className="empty-state-desc">从左侧列表选择一个服务器开始</div>
       <div className="empty-state-actions">

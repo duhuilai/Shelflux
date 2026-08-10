@@ -78,6 +78,9 @@ pub fn run() {
             commands::system::copy_to_clipboard,
             commands::system::read_from_clipboard,
             commands::system::get_app_info,
+            commands::update::check_update,
+            commands::update::download_update,
+            commands::update::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Shelflux");

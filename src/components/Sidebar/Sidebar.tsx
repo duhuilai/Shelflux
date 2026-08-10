@@ -18,6 +18,7 @@ export function Sidebar() {
   const openSettings = useUiStore((s) => s.openSettings);
   const openForwardPanel = useUiStore((s) => s.openForwardPanel);
   const askConfirm = useUiStore((s) => s.askConfirm);
+  const askPrompt = useUiStore((s) => s.askPrompt);
   const forwardRuntime = useForwardStore((s) => s.runtime);
   const activeForwards = useMemo(
     () => Object.values(forwardRuntime).filter((r) => r.active).length,
@@ -45,8 +46,12 @@ export function Sidebar() {
     toast.success("已导出", filename);
   };
 
-  const handleAddGroup = () => {
-    const name = prompt("分组名称：", "新分组");
+  const handleAddGroup = async () => {
+    const name = await askPrompt({
+      title: "新建分组",
+      message: "请输入分组名称",
+      defaultValue: "新分组",
+    });
     if (name) addGroup(name);
   };
 

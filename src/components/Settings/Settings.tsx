@@ -61,6 +61,19 @@ export function Settings({ onClose }: Props) {
   const [hosts, setHosts] = useState<KnownHostEntry[]>([]);
   const [hostsLoading, setHostsLoading] = useState(false);
 
+  // 更新检查状态机：idle | checking | uptodate | available | downloading | downloaded | error
+  const [updateState, setUpdateState] = useState<
+    "idle" | "checking" | "uptodate" | "available" | "downloading" | "downloaded" | "error"
+  >("idle");
+  const [updateInfo, setUpdateInfo] = useState<{
+    latest_version: string;
+    release_notes: string;
+    size?: number;
+    download_url?: string;
+  } | null>(null);
+  const [localPath, setLocalPath] = useState<string | null>(null);
+  const [updateError, setUpdateError] = useState("");
+
   const loadHosts = async () => {
     setHostsLoading(true);
     try {
@@ -121,6 +134,56 @@ export function Settings({ onClose }: Props) {
     } catch {
       toast.error("复制失败");
     }
+  };
+
+  const checkUpdate = async () => {
+    setUpdateState("checking");
+    setUpdateError("");
+    try {
+      const info = await invoke<{
+        latest_version: string;
+        has_update: boolean;
+        release_notes: string;
+        size?: number;
+        download_url?: string;
+      }>("check_update");
+      if (info.has_update && info.download_url) {
+        setUpdateInfo({
+          latest_version: info.latest_version,
+          release_notes: info.release_notes || "",
+          size: info.size,
+          download_url: info.download_url,
+        });
+        setUpdateState("available");
+      } else {
+        setUpdateState("uptodate");
+      }
+    } catch (e: any) {
+      setUpdateError(String(e));
+      setUpdateState("error");
+    }
+  };
+
+  const downloadUpdate = async () => {
+    if (!updateInfo?.download_url) return;
+    setUpdateState("downloading");
+    setUpdateError("");
+    try {
+      const path = await invoke<string>("download_update", {
+        downloadUrl: updateInfo.download_url,
+      });
+      setLocalPath(path);
+      setUpdateState("downloaded");
+    } catch (e: any) {
+      setUpdateError(String(e));
+      setUpdateState("error");
+    }
+  };
+
+  const installUpdate = async () => {
+    if (!localPath) return;
+    // 后端会打开安装包并退出当前进程，前端无需等待结果
+    invoke("install_update", { path: localPath }).catch(() => {});
   };
 
   useEffect(() => {
@@ -506,6 +569,83 @@ export function Settings({ onClose }: Props) {
                     {appInfo?.dataDir || "-"}
                   </span>
                 </div>
+              </div>
+
+              <div className="settings-section">
+                <div className="settings-section-title">更新</div>
+                <div className="settings-data-row" style={{ marginBottom: 8 }}>
+                  <span>更新状态</span>
+                  <span>
+                    {updateState === "idle" && "—"}
+                    {updateState === "checking" && "正在检查…"}
+                    {updateState === "uptodate" && `已是最新 (v${appInfo?.version})`}
+                    {updateState === "available" && `发现新版本 v${updateInfo?.latest_version}`}
+                    {updateState === "downloading" && "正在下载…"}
+                    {updateState === "downloaded" && "下载完成，可安装"}
+                    {updateState === "error" && "检查失败"}
+                  </span>
+                </div>
+
+                {updateState === "available" && (
+                  <div className="settings-info" style={{ marginBottom: 8 }}>
+                    新版本 v{updateInfo?.latest_version} 可用（当前 v{appInfo?.version}）
+                    {updateInfo?.size
+                      ? ` · ${(updateInfo.size / 1048576).toFixed(1)} MB`
+                      : ""}
+                  </div>
+                )}
+
+                {updateState === "error" && (
+                  <div
+                    className="settings-info"
+                    style={{ marginBottom: 8, color: "var(--color-error)" }}
+                  >
+                    {updateError}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {(updateState === "idle" ||
+                    updateState === "uptodate" ||
+                    updateState === "error") && (
+                    <button className="btn btn-sm" onClick={checkUpdate}>
+                      检查更新
+                    </button>
+                  )}
+                  {updateState === "available" && (
+                    <button className="btn btn-sm btn-primary" onClick={downloadUpdate}>
+                      下载
+                    </button>
+                  )}
+                  {updateState === "downloading" && (
+                    <button className="btn btn-sm" disabled>
+                      下载中…
+                    </button>
+                  )}
+                  {updateState === "downloaded" && (
+                    <button className="btn btn-sm btn-primary" onClick={installUpdate}>
+                      安装
+                    </button>
+                  )}
+                </div>
+
+                {updateState === "available" && updateInfo?.release_notes && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: 12,
+                      color: "var(--fg-secondary)",
+                      whiteSpace: "pre-wrap",
+                      maxHeight: 120,
+                      overflow: "auto",
+                      background: "var(--bg-secondary)",
+                      padding: 8,
+                      borderRadius: 6,
+                    }}
+                  >
+                    {updateInfo.release_notes}
+                  </div>
+                )}
               </div>
 
               <div className="settings-section">

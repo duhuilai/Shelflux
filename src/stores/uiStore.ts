@@ -20,12 +20,24 @@ interface ConfirmState {
   resolve?: (v: boolean) => void;
 }
 
+interface PromptState {
+  open: boolean;
+  title: string;
+  message?: string;
+  defaultValue?: string;
+  placeholder?: string;
+  confirmText?: string;
+  cancelText?: string;
+  resolve?: (v: string | null) => void;
+}
+
 interface UiStoreState {
   serverForm: ServerFormState;
   serverPickerOpen: boolean;
   settingsOpen: boolean;
   forwardPanelOpen: boolean;
   confirm: ConfirmState;
+  prompt: PromptState;
 
   openServerForm: (editing?: Server, groupId?: string | null) => void;
   closeServerForm: () => void;
@@ -43,6 +55,15 @@ interface UiStoreState {
     danger?: boolean;
   }) => Promise<boolean>;
   resolveConfirm: (v: boolean) => void;
+  askPrompt: (opts: {
+    title: string;
+    message?: string;
+    defaultValue?: string;
+    placeholder?: string;
+    confirmText?: string;
+    cancelText?: string;
+  }) => Promise<string | null>;
+  resolvePrompt: (v: string | null) => void;
 }
 
 export const useUiStore = create<UiStoreState>((set, get) => ({
@@ -51,6 +72,7 @@ export const useUiStore = create<UiStoreState>((set, get) => ({
   settingsOpen: false,
   forwardPanelOpen: false,
   confirm: { open: false, title: "", message: "" },
+  prompt: { open: false, title: "" },
 
   openServerForm: (editing, groupId) =>
     set({
@@ -88,6 +110,29 @@ export const useUiStore = create<UiStoreState>((set, get) => ({
     set({
       confirm: { open: false, title: "", message: "" },
     });
+    r?.(v);
+  },
+
+  askPrompt: (opts) => {
+    return new Promise<string | null>((resolve) => {
+      set({
+        prompt: {
+          open: true,
+          title: opts.title,
+          message: opts.message,
+          defaultValue: opts.defaultValue || "",
+          placeholder: opts.placeholder,
+          confirmText: opts.confirmText || "确定",
+          cancelText: opts.cancelText || "取消",
+          resolve,
+        },
+      });
+    });
+  },
+
+  resolvePrompt: (v) => {
+    const r = get().prompt.resolve;
+    set({ prompt: { open: false, title: "" } });
     r?.(v);
   },
 }));
