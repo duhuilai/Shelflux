@@ -48,6 +48,12 @@ dirs = "5.0"
 sha2 = "0.10"
 hex = "0.4"
 arboard = "3.6.1"
+
+# Windows-only native deps. MUST be gated to cfg(windows): both crates contain
+# `compile_error!` for non-Windows targets, so compiling them on macOS/Linux (e.g.
+# in cross-platform CI) aborts the build. All usages in system.rs are already
+# wrapped in `#[cfg(target_os = "windows")]`, so this is safe on every platform.
+[target.'cfg(windows)'.dependencies]
 winreg = "0.52"
 winapi = { version = "0.3", features = ["winver", "shellapi", "winuser", "processenv"] }
 
