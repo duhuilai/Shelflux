@@ -46,8 +46,7 @@
     "windows": {
       "nsis": {
         "languages": ["SimpChinese", "English"],
-        "installMode": "currentUser",
-        "installDir": "Shelflux"
+        "installMode": "perMachine"
       },
       "wix": {
         "language": ["zh-CN", "en-US"]
