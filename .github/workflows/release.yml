@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ""
+            rustTargets: ""
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
+            rustTargets: "aarch64-apple-darwin,x86_64-apple-darwin"
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rustTargets }}
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and publish (Tauri)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Shelflux ${{ github.ref_name }}"
+          releaseBody: |
+            ## Shelflux ${{ github.ref_name }}
+
+            Cross-platform SSH / SFTP client built with Tauri 2.
+
+            ### Downloads
+            - **Windows**: `Shelflux_${{ github.ref_name }}_x64_en-US.msi` / `Shelflux_${{ github.ref_name }}_x64-setup.exe` (NSIS installer)
+            - **macOS**: `Shelflux_${{ github.ref_name }}_universal.app.tar.gz` / `Shelflux_${{ github.ref_name }}_universal.dmg`
+
+            ### Notes
+            - Windows / macOS installers are **unsigned** in this release. On Windows you may see a SmartScreen warning; on macOS, right-click → Open to bypass Gatekeeper.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
