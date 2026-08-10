@@ -1,0 +1,63 @@
+[package]
+name = "shelflux"
+version = "0.0.1"
+description = "Shelflux - 跨平台多协议连接管理工具（SSH / SFTP / Telnet / Rlogin）"
+authors = ["Shelflux Team"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "shelflux_lib"
+# NOTE: 'cdylib' is intentionally omitted. On the x86_64-pc-windows-gnu target
+# MinGW's `ld` exports EVERY symbol from the cdylib, overflowing its 16-bit
+# export-ordinal table (>65535) with "export ordinal too large" and failing the
+# link. The desktop .exe links the rlib/staticlib (main.rs -> shelflux_lib::run()),
+# so the cdylib is only required for mobile targets. Re-add it only when building
+# for iOS/Android (where a different toolchain handles the export table).
+crate-type = ["staticlib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.1", features = [] }
+tauri-plugin-dialog = "2.0"
+tauri-plugin-fs = "2.0"
+tauri-plugin-store = "2.1"
+tauri-plugin-shell = "2.0"
+tauri-plugin-opener = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.41", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+log = "0.4"
+
+# SSH / SFTP (纯 Rust，不依赖系统 OpenSSL)
+russh = "0.44"
+russh-sftp = "2.0"
+russh-keys = "0.44"
+async-trait = "0.1"
+
+# Local FS
+dirs = "5.0"
+
+# Hashing for ssh key passphrase etc.
+sha2 = "0.10"
+hex = "0.4"
+arboard = "3.6.1"
+winreg = "0.52"
+winapi = { version = "0.3", features = ["winver", "shellapi", "winuser", "processenv"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 16
+lto = "thin"
+opt-level = "s"
+strip = true

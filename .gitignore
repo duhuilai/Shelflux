@@ -1,0 +1,33 @@
+node_modules
+dist
+dist-ssr
+*.local
+.vscode
+.idea
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+
+# Tauri
+src-tauri/target
+src-tauri/gen
+
+# Cargo.lock is committed for this binary app (pins deps for reproducible CI builds)
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+*.tsbuildinfo
+source-icon.jpg
+
+# Agent / project memory (not source)
+.workbuddy/

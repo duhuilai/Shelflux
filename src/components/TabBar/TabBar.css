@@ -1,0 +1,112 @@
+/* TabBar 样式 - Vercel 卡片风格 */
+.tabbar {
+  height: var(--tabbar-height);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border-light);
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tabbar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.tab:hover {
+  background: var(--bg-secondary);
+  color: var(--fg-secondary);
+}
+
+.tab.active {
+  background: var(--bg-secondary);
+  border-color: var(--border-default);
+  color: var(--fg-primary);
+}
+
+.tab-close {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.tab:hover .tab-close {
+  opacity: 0.6;
+}
+
+.tab-close:hover {
+  opacity: 1 !important;
+  background: var(--bg-tertiary);
+}
+
+.tab-icon {
+  flex-shrink: 0;
+  color: inherit;
+  opacity: 0.8;
+}
+
+.tab-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+  flex-shrink: 0;
+}
+
+.tab-status.connecting {
+  background: var(--color-warn);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.tab-status.error {
+  background: var(--color-error);
+}
+
+.tab-new {
+  width: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tab-new:hover {
+  background: var(--bg-secondary);
+  color: var(--accent-blue);
+}

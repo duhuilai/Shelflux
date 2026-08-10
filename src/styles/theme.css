@@ -1,0 +1,96 @@
+/* 主题变量 - Vercel 浅色风格 */
+
+:root {
+  color-scheme: light;
+
+  /* 背景 */
+  --bg-base: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f5f5f5;
+  --bg-input: #fafafa;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.06);
+  --bg-selected: rgba(0, 0, 0, 0.08);
+
+  /* 文字 */
+  --fg-primary: #171717;
+  --fg-secondary: #4d4d4d;
+  --fg-muted: #808080;
+  --fg-disabled: #a0a0a0;
+
+  /* 边框 */
+  --border-soft: rgba(0, 0, 0, 0.06);
+  --border-default: rgba(0, 0, 0, 0.12);
+  --border-light: rgb(235, 235, 235);
+
+  /* 主色 - Vercel 蓝 */
+  --accent-blue: #0a72ef;
+  --accent-blue-soft: rgba(10, 114, 239, 0.08);
+
+  /* 状态 */
+  --color-success: #0a9b4f;
+  --color-warn: #d97706;
+  --color-error: #dc2626;
+  --color-info: #0a72ef;
+
+  /* 阴影 - Shadow-as-border */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* 圆角 */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* 间距 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+
+  /* 字体 */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  /* 动画 */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-base: 150ms;
+
+  /* 布局 */
+  --sidebar-width: 260px;
+  --tabbar-height: 40px;
+  --titlebar-height: 44px;
+}
+
+/* 暗色主题保留（可切换） */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-base: #0a0a0a;
+  --bg-elevated: #111111;
+  --bg-secondary: #171717;
+  --bg-tertiary: #1c1c1c;
+  --bg-input: #171717;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.1);
+  --bg-selected: rgba(255, 255, 255, 0.12);
+  --fg-primary: #ededed;
+  --fg-secondary: #a1a1a1;
+  --fg-muted: #737373;
+  --fg-disabled: #525252;
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.16);
+  --border-light: rgb(40, 40, 40);
+  --accent-blue: #3b82f6;
+  --accent-blue-soft: rgba(59, 130, 246, 0.15);
+  --color-success: #22c55e;
+  --color-warn: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+}

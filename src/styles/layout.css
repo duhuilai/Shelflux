@@ -1,0 +1,83 @@
+/* App 整体布局 */
+.window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+/* macOS 窗口标题栏 */
+.titlebar {
+  height: var(--titlebar-height);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.titlebar-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-secondary);
+  margin-left: auto;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Content Area */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* flex 子项默认 min-width/min-height:auto，会被内容（长文件名等）撑宽；
+     显式归零后主区域才能严格跟随窗口宽度，不产生横向滚动条 */
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+/* 空状态 */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--fg-muted);
+  user-select: none;
+}
+
+.empty-state-logo {
+  width: 48px;
+  height: 48px;
+  opacity: 0.6;
+}
+
+.empty-state-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg-primary);
+}
+
+.empty-state-desc {
+  font-size: 13px;
+  max-width: 320px;
+  text-align: center;
+  color: var(--fg-secondary);
+}
+
+.empty-state-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}

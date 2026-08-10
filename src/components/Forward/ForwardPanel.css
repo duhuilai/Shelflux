@@ -1,0 +1,244 @@
+/* 端口转发面板 */
+
+.fwd-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ----------------------------- 工具栏 ----------------------------- */
+
+.fwd-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: 10px;
+}
+
+.fwd-toolbar-spacer {
+  flex: 1;
+}
+
+.fwd-count {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+/* ------------------------------ 空态 ------------------------------ */
+
+.fwd-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.fwd-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-primary);
+  margin-bottom: 6px;
+}
+
+.fwd-empty-desc {
+  font-size: 12px;
+  color: var(--fg-muted);
+  max-width: 340px;
+  line-height: 1.7;
+}
+
+/* ------------------------------ 列表 ------------------------------ */
+
+.fwd-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.fwd-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.fwd-item:hover {
+  border-color: var(--border-strong);
+}
+
+.fwd-item.active {
+  border-color: var(--accent-blue);
+}
+
+.fwd-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+  background: var(--fg-muted);
+  opacity: 0.4;
+}
+
+.fwd-dot.on {
+  background: var(--color-success);
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(158, 206, 106, 0.22);
+}
+
+.fwd-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.fwd-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-primary);
+  margin-bottom: 3px;
+}
+
+.fwd-kind {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-default);
+  color: var(--fg-muted);
+}
+
+.fwd-kind.local {
+  color: #7aa2f7;
+  border-color: rgba(122, 162, 247, 0.4);
+}
+
+.fwd-kind.remote {
+  color: #bb9af7;
+  border-color: rgba(187, 154, 247, 0.4);
+}
+
+.fwd-kind.dynamic {
+  color: #7dcfff;
+  border-color: rgba(125, 207, 255, 0.4);
+}
+
+.fwd-conns {
+  font-size: 10px;
+  color: var(--color-success);
+}
+
+.fwd-path {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--fg-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fwd-server {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+
+.fwd-error {
+  font-size: 11px;
+  color: var(--color-error);
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.fwd-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ------------------------------ 表单 ------------------------------ */
+
+.fwd-form {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.fwd-kind-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.fwd-kind-card {
+  padding: 9px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-input);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.fwd-kind-card:hover {
+  border-color: var(--accent-blue);
+}
+
+.fwd-kind-card.active {
+  border-color: var(--accent-blue);
+  background: var(--btn-bg-hover);
+}
+
+.fwd-kind-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-primary);
+  margin-bottom: 3px;
+}
+
+.fwd-kind-desc {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+
+.fwd-addr-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fwd-colon {
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+
+.fwd-hint {
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  margin-top: 5px;
+  line-height: 1.6;
+}
+
+.fwd-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-default);
+}
