@@ -284,3 +284,31 @@
   max-height: 260px;
   overflow-y: auto;
 }
+
+/* 更新下载进度条 */
+.download-progress {
+  margin-top: 10px;
+}
+
+.download-progress-track {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.download-progress-fill {
+  height: 100%;
+  background: var(--accent-blue, #7aa2f7);
+  border-radius: 9999px;
+  transition: width 0.2s ease;
+}
+
+.download-progress-text {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}

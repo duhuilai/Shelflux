@@ -6,11 +6,9 @@ import { SshView } from "../SshView/SshView";
 
 export function MainArea() {
   const activeTabId = useTabStore((s) => s.activeTabId);
-  const tab = useTabStore((s) =>
-    s.tabs.find((t) => t.id === activeTabId)
-  );
+  const tabs = useTabStore((s) => s.tabs);
 
-  if (!tab) return <EmptyState />;
+  if (tabs.length === 0) return <EmptyState />;
 
   return (
     <div
@@ -24,10 +22,28 @@ export function MainArea() {
         overflow: "hidden",
       }}
     >
-      {tab.kind === "sftp" && <SftpView tab={tab} />}
-      {(tab.kind === "ssh" || tab.kind === "telnet" || tab.kind === "rlogin") && (
-        <SshView tab={tab} />
-      )}
+      {tabs.map((t) => (
+        // 关键：始终挂载所有页签，仅隐藏非激活者（display:none）。
+        // 这样切换 tab 时不会卸载 SshView/SftpView 组件，SSH 连接不被
+        // ssh_shell_close 切断、SFTP 的当前目录/文件列表等状态得以保留。
+        // 重新显示时 SshView 的 ResizeObserver 会自动 fit 终端尺寸。
+        <div
+          key={t.id}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+            display: t.id === activeTabId ? "flex" : "none",
+            // 隐藏态仍保持布局基准，避免 xterm 拿到 0 尺寸后渲染异常
+            flexDirection: "column",
+          }}
+        >
+          {t.kind === "sftp" && <SftpView tab={t} />}
+          {(t.kind === "ssh" || t.kind === "telnet" || t.kind === "rlogin") && (
+            <SshView tab={t} />
+          )}
+        </div>
+      ))}
     </div>
   );
 }

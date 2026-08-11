@@ -7,6 +7,9 @@
 
 use std::process::Command;
 use tauri::AppHandle;
+use tauri::Emitter;
+use tokio::io::AsyncWriteExt;
+use futures_util::StreamExt;
 use serde::Serialize;
 
 use crate::error::AppError;
@@ -22,6 +25,13 @@ pub struct UpdateInfo {
     pub download_url: Option<String>,
     pub asset_name: Option<String>,
     pub size: Option<u64>,
+}
+
+/// 下载进度事件载荷（通过 app.emit("download-progress", ...) 推送给前端）
+#[derive(Serialize, Clone)]
+pub struct DownloadProgress {
+    pub downloaded: u64,
+    pub total: u64,
 }
 
 #[tauri::command]
@@ -89,7 +99,7 @@ pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, AppError> {
 }
 
 #[tauri::command]
-pub async fn download_update(download_url: String) -> Result<String, AppError> {
+pub async fn download_update(app: AppHandle, download_url: String) -> Result<String, AppError> {
     let client = reqwest::Client::builder()
         .user_agent("Shelflux")
         .build()
@@ -105,10 +115,16 @@ pub async fn download_update(download_url: String) -> Result<String, AppError> {
         return Err(AppError::Other(format!("下载失败，状态码 {}", resp.status())));
     }
 
-    let bytes = resp
-        .bytes()
-        .await
-        .map_err(|e| AppError::Other(format!("读取下载数据失败: {e}")))?;
+    let total = resp.content_length().unwrap_or(0);
+
+    // 先发一次"开始"进度（total 可能为 0：未知大小时前端显示不确定进度条）
+    let _ = app.emit(
+        "download-progress",
+        DownloadProgress {
+            downloaded: 0,
+            total,
+        },
+    );
 
     let file_name = download_url
         .rsplit('/')
@@ -120,9 +136,30 @@ pub async fn download_update(download_url: String) -> Result<String, AppError> {
         .await
         .map_err(AppError::Io)?;
     let path = dir.join(&file_name);
-    tokio::fs::write(&path, &bytes)
+    let mut file = tokio::fs::File::create(&path)
         .await
         .map_err(AppError::Io)?;
+
+    // 流式读取分块，边写边回报进度
+    let mut stream = resp.bytes_stream();
+    let mut downloaded: u64 = 0;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| AppError::Other(format!("读取下载数据失败: {e}")))?;
+        let len = chunk.len() as u64;
+        file.write_all(&chunk)
+            .await
+            .map_err(AppError::Io)?;
+        downloaded += len;
+        let _ = app.emit(
+            "download-progress",
+            DownloadProgress {
+                downloaded,
+                total,
+            },
+        );
+    }
+    file.flush().await.map_err(AppError::Io)?;
+    drop(file);
 
     Ok(path.to_string_lossy().to_string())
 }

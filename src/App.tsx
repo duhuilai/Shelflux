@@ -17,22 +17,26 @@ import { useSettingsStore, resolveTheme } from "./stores/settingsStore";
 import { toast } from "./stores/toastStore";
 import { listen } from "@tauri-apps/api/event";
 
-// 右键菜单项
+// 右键菜单项（支持级联子菜单）
 interface ContextMenuItem {
   label: string;
-  icon: React.ReactNode;
-  action: () => void;
+  icon?: React.ReactNode;
+  action?: () => void;
   danger?: boolean;
+  divider?: boolean;
+  submenu?: ContextMenuItem[];
 }
 
-// 右键菜单组件
+// 右键菜单组件（全局，支持级联子菜单）
 function ContextMenu() {
   const [menu, setMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  const [activeSub, setActiveSub] = useState<number | null>(null);
 
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       setMenu({ x: detail.x, y: detail.y, items: detail.items });
+      setActiveSub(null);
       detail.onClose = () => setMenu(null);
     };
     const clickHandler = () => setMenu(null);
@@ -51,12 +55,85 @@ function ContextMenu() {
   if (!menu) return null;
 
   // 确保菜单不超出视口
-  const menuWidth = 160;
+  const menuWidth = 180;
   const menuHeight = menu.items.length * 28;
   const maxX = window.innerWidth - menuWidth - 8;
   const maxY = window.innerHeight - menuHeight - 8;
   const x = Math.min(menu.x, maxX);
   const y = Math.min(menu.y, maxY);
+
+  const renderItems = (
+    items: ContextMenuItem[],
+    parentIdx = -1,
+    nested = false
+  ) =>
+    items.map((item, idx) => {
+      if (item.divider) {
+        return (
+          <div
+            key={idx}
+            style={{ height: 1, background: "var(--border-light)", margin: "4px 0" }}
+          />
+        );
+      }
+      const hasSub = !nested && !!item.submenu?.length;
+      return (
+        <div key={idx} style={{ position: "relative" }}>
+          <div
+            className="context-menu-item"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 12px",
+              cursor: "pointer",
+              fontSize: 12,
+              color: item.danger ? "var(--color-error)" : "var(--fg-primary)",
+              transition: "background 0.1s",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)";
+              if (hasSub) setActiveSub(idx);
+              else if (!nested) setActiveSub(null);
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "";
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (hasSub) return;
+              item.action?.();
+              setMenu(null);
+              setActiveSub(null);
+            }}
+          >
+            {item.icon && <span style={{ opacity: 0.7, flexShrink: 0 }}>{item.icon}</span>}
+            <span style={{ flex: 1 }}>{item.label}</span>
+            {hasSub && <span style={{ opacity: 0.5, marginLeft: 4 }}>▸</span>}
+          </div>
+          {hasSub && activeSub === idx && (
+            <div
+              style={{
+                position: "absolute",
+                left: "100%",
+                top: -4,
+                background: "var(--bg-base)",
+                border: "1px solid var(--border-default)",
+                borderRadius: 6,
+                padding: "4px 0",
+                minWidth: 150,
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                zIndex: 10000,
+              }}
+              onMouseEnter={() => setActiveSub(idx)}
+              onMouseLeave={() => setActiveSub(null)}
+            >
+              {renderItems(item.submenu!, idx, true)}
+            </div>
+          )}
+        </div>
+      );
+    });
 
   return (
     <div
@@ -75,36 +152,7 @@ function ContextMenu() {
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {menu.items.map((item, idx) => (
-        <div
-          key={idx}
-          className="context-menu-item"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "6px 12px",
-            cursor: "pointer",
-            fontSize: 12,
-            color: item.danger ? "var(--color-error)" : "var(--fg-primary)",
-            transition: "background 0.1s",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "transparent";
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            item.action();
-            setMenu(null);
-          }}
-        >
-          <span style={{ opacity: 0.7, flexShrink: 0 }}>{item.icon}</span>
-          <span>{item.label}</span>
-        </div>
-      ))}
+      {renderItems(menu.items)}
     </div>
   );
 }

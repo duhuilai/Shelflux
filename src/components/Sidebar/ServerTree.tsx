@@ -1,6 +1,6 @@
 // 递归渲染分组与服务器（支持拖动排序）
 import { useState, useRef, useCallback, useEffect } from "react";
-import type { Server, ServerGroup } from "../../types";
+import type { Server, ServerGroup, TabKind } from "../../types";
 import { useServerStore } from "../../stores/serverStore";
 import { useTabStore } from "../../stores/tabStore";
 import { useUiStore } from "../../stores/uiStore";
@@ -18,10 +18,12 @@ type DropTarget =
 
 // 右键菜单项
 interface ContextMenuItem {
-  label: string;
-  icon: React.ReactNode;
-  action: () => void;
+  label?: string;
+  icon?: React.ReactNode;
+  action?: () => void;
   danger?: boolean;
+  divider?: boolean;
+  submenu?: ContextMenuItem[];
 }
 
 // 全局右键菜单状态
@@ -265,7 +267,31 @@ function ServerNode({
     e.preventDefault();
     e.stopPropagation();
 
+    const shellKind: TabKind = server.protocol === "sftp" ? "ssh" : server.protocol;
+    const canSftp = server.protocol === "ssh" || server.protocol === "sftp";
+
+    const openItems: ContextMenuItem[] = [
+      {
+        label: "Shell",
+        icon: <TerminalIcon />,
+        action: () => openTab(server, shellKind),
+      },
+    ];
+    if (canSftp) {
+      openItems.push({
+        label: "SFTP",
+        icon: <ServerProtocolIcon kind="sftp" />,
+        action: () => openTab(server, "sftp"),
+      });
+    }
+
     const items: ContextMenuItem[] = [
+      {
+        label: "打开方式",
+        icon: <OpenWithIcon />,
+        submenu: openItems,
+      },
+      { divider: true },
       {
         label: "编辑",
         icon: <EditIcon />,
@@ -345,7 +371,6 @@ function ServerNode({
   };
 
   const title = server.alias || `${server.username}@${server.host}`;
-  const sub = server.alias ? `${server.username}@${server.host}` : server.host;
 
   return (
     <div
@@ -394,12 +419,7 @@ function ServerNode({
             }}
           />
         ) : (
-          <>
-            <span className="tree-label">{title}</span>
-            <span className="tree-label-secondary">
-              {server.username}@{sub}
-            </span>
-          </>
+          <span className="tree-label" style={{ flex: 1 }}>{title}</span>
         )}
       </div>
       {dragOver === "bottom" && <div className="tree-drop-placeholder" />}
@@ -470,6 +490,25 @@ function TagIcon() {
     <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
       <path d="M1 1h4l5 5-4 4-5-5V1z" stroke="currentColor" strokeWidth="1" fill="none" />
       <circle cx="3" cy="3" r="0.6" fill="currentColor" />
+    </svg>
+  );
+}
+
+function TerminalIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 13 13" fill="none">
+      <rect x="1" y="2" width="11" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M3.5 5l2 1.5-2 1.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7.5 8.5h2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function OpenWithIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+      <path d="M2 3h3M2 6h5M2 9h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+      <path d="M7.5 4.5L10 7l-2.5 2.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

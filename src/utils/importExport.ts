@@ -11,19 +11,24 @@ export interface ExportPayload {
 
 export function buildExportPayload(
   groups: ServerGroup[],
-  servers: Server[]
+  servers: Server[],
+  includeSecrets = false
 ): ExportPayload {
   return {
     version: 1,
     exportedAt: new Date().toISOString(),
     groups,
-    servers: servers.map((s) => ({
-      ...s,
-      // 导出时清空敏感字段（密码、私钥）
-      password: "",
-      privateKey: "",
-      passphrase: "",
-    })),
+    servers: servers.map((s) =>
+      includeSecrets
+        ? { ...s }
+        : {
+            ...s,
+            // 默认清空敏感字段（密码、私钥、口令）；includeSecrets=true 时保留
+            password: "",
+            privateKey: "",
+            passphrase: "",
+          }
+    ),
   };
 }
 

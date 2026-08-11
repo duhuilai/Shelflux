@@ -39,8 +39,14 @@ export function Sidebar() {
     };
   }, [search, groups, servers]);
 
-  const handleExport = () => {
-    const data = buildExportPayload(groups, servers);
+  const handleExport = async () => {
+    const include = await askConfirm({
+      title: "导出选项",
+      message: "是否包含密码和私钥？包含后文件可直接用于导入并登录；不包含则敏感字段留空。",
+      confirmText: "包含密码",
+      cancelText: "不包含",
+    });
+    const data = buildExportPayload(groups, servers, include);
     const filename = `shelflux-export-${new Date().toISOString().slice(0, 10)}.json`;
     downloadJson(data, filename);
     toast.success("已导出", filename);

@@ -1,6 +1,7 @@
 // 设置对话框 - 终端样式、默认应用、关于
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useUiStore } from "../../stores/uiStore";
 import { toast } from "../../stores/toastStore";
@@ -16,6 +17,19 @@ function formatHostTime(ts: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(
     d.getHours()
   )}:${p(d.getMinutes())}`;
+}
+
+/** 字节数 → 友好显示 */
+function formatMB(bytes: number): string {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let v = bytes;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
 interface Props {
@@ -73,6 +87,10 @@ export function Settings({ onClose }: Props) {
   } | null>(null);
   const [localPath, setLocalPath] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState("");
+  const [downloadProgress, setDownloadProgress] = useState<{
+    downloaded: number;
+    total: number;
+  } | null>(null);
 
   const loadHosts = async () => {
     setHostsLoading(true);
@@ -168,6 +186,17 @@ export function Settings({ onClose }: Props) {
     if (!updateInfo?.download_url) return;
     setUpdateState("downloading");
     setUpdateError("");
+    setDownloadProgress({ downloaded: 0, total: updateInfo.size || 0 });
+    // 必须在 invoke 之前注册监听，才能捕获下载过程中的全部进度事件
+    const unlisten = await listen<{ downloaded: number; total: number }>(
+      "download-progress",
+      (e) => {
+        setDownloadProgress({
+          downloaded: e.payload.downloaded,
+          total: e.payload.total,
+        });
+      }
+    );
     try {
       const path = await invoke<string>("download_update", {
         downloadUrl: updateInfo.download_url,
@@ -177,6 +206,8 @@ export function Settings({ onClose }: Props) {
     } catch (e: any) {
       setUpdateError(String(e));
       setUpdateState("error");
+    } finally {
+      unlisten();
     }
   };
 
@@ -628,6 +659,36 @@ export function Settings({ onClose }: Props) {
                     </button>
                   )}
                 </div>
+
+                {updateState === "downloading" && downloadProgress && (
+                  <div className="download-progress">
+                    <div className="download-progress-track">
+                      <div
+                        className="download-progress-fill"
+                        style={{
+                          width:
+                            downloadProgress.total > 0
+                              ? `${Math.min(
+                                  100,
+                                  Math.floor(
+                                    (downloadProgress.downloaded / downloadProgress.total) * 100
+                                  )
+                                )}%`
+                              : "100%",
+                          opacity: downloadProgress.total > 0 ? 1 : 0.5,
+                        }}
+                      />
+                    </div>
+                    <div className="download-progress-text">
+                      {formatMB(downloadProgress.downloaded)}
+                      {downloadProgress.total > 0
+                        ? ` / ${formatMB(downloadProgress.total)} · ${Math.floor(
+                            (downloadProgress.downloaded / downloadProgress.total) * 100
+                          )}%`
+                        : " · 下载中…"}
+                    </div>
+                  </div>
+                )}
 
                 {updateState === "available" && updateInfo?.release_notes && (
                   <div
