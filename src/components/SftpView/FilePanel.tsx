@@ -31,6 +31,14 @@ const clamp = (v: number, lo: number, hi: number) =>
 /** 目录路径归一化：统一斜杠、去掉结尾分隔符，便于跨端比较 */
 const normDir = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "");
 
+/** 记录当前获得焦点的面板侧（用于决定 Ctrl+C/V 作用于哪个面板） */
+let activeSide: "local" | "remote" | null = null;
+
+/** 外部（如文件夹页签栏）主动声明焦点侧，保证快捷键路由正确 */
+export function focusSide(side: "local" | "remote") {
+  activeSide = side;
+}
+
 export function FilePanel({
   title,
   labelClass,
@@ -86,6 +94,8 @@ export function FilePanel({
   const removeDefaultApp = useSettingsStore((s) => s.removeDefaultApp);
   const askConfirm = useUiStore((s) => s.askConfirm);
   const askPrompt = useUiStore((s) => s.askPrompt);
+  const askOverwrite = useUiStore((s) => s.askOverwrite);
+  const setClipboard = useUiStore((s) => s.setClipboard);
 
   const load = useCallback(
     async (path: string) => {
@@ -139,6 +149,111 @@ export function FilePanel({
       if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
     };
   }, [side, load]);
+
+  // 复制选中项到应用内剪贴板（Ctrl+C）
+  const copySelection = useCallback(() => {
+    if (selected.size === 0) return false;
+    const items = entries.filter((e) => selected.has(e.path));
+    if (items.length === 0) return false;
+    setClipboard({
+      side,
+      server: side === "remote" ? server : null,
+      items,
+    });
+    toast.info("已复制", `${items.length} 项`);
+    return true;
+  }, [selected, entries, side, server, setClipboard]);
+
+  // 粘贴剪贴板内容到当前目录（Ctrl+V）
+  const pasteItems = useCallback(async () => {
+    const clip = useUiStore.getState().clipboard;
+    if (!clip || clip.items.length === 0) return;
+
+    // 跨侧粘贴：当作传输到对面处理
+    if (clip.side !== side) {
+      onTransfer(clip.items);
+      toast.info("已传输到对面");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      for (const item of clip.items) {
+        let destName = item.name;
+        let destPath = joinPath(currentPath, destName);
+        const exists = side === "local"
+          ? await invoke<boolean>("local_exists", { path: destPath })
+          : await invoke<boolean>("sftp_exists", { server, path: destPath });
+        if (exists) {
+          const choice = await askOverwrite({
+            title: "文件已存在",
+            message: `"${destName}" 已存在，是否覆盖或重命名？`,
+          });
+          if (choice === "skip") continue;
+          if (choice === "rename") {
+            const newName = await askPrompt({
+              title: "重命名副本",
+              message: "请输入新名称",
+              defaultValue: destName,
+            });
+            if (!newName || newName === destName) continue;
+            destName = newName;
+            destPath = joinPath(currentPath, newName);
+          }
+          // overwrite：直接复制，后端会覆盖既有文件
+        }
+        if (side === "local") {
+          await invoke("local_copy", { from: item.path, to: destPath });
+        } else {
+          await invoke("sftp_copy", {
+            server: clip.server ?? server,
+            from: item.path,
+            to: destPath,
+            taskId: uid(),
+          });
+        }
+      }
+      await load(currentPath);
+      toast.success("已粘贴", `${clip.items.length} 项`);
+    } catch (e: any) {
+      toast.error("粘贴失败", e.toString());
+    } finally {
+      setLoading(false);
+    }
+  }, [side, currentPath, server, onTransfer, askOverwrite, askPrompt, load]);
+
+  // 监听 Ctrl+C / Ctrl+V（仅作用于当前获得焦点的面板；输入框/弹窗中不拦截）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      const st = useUiStore.getState();
+      if (st.confirm.open || st.prompt.open || st.overwrite.open) return;
+      if (activeSide !== side) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+
+      const key = e.key.toLowerCase();
+      if (key === "c") {
+        if (selected.size === 0) return;
+        if (copySelection()) e.preventDefault();
+      } else if (key === "v") {
+        const clip = useUiStore.getState().clipboard;
+        if (clip && clip.items.length > 0) {
+          e.preventDefault();
+          void pasteItems();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [side, selected, copySelection, pasteItems]);
 
   // 关闭右键菜单
   useEffect(() => {
@@ -681,6 +796,9 @@ export function FilePanel({
   return (
     <div
       className={`sftp-panel ${dragOver ? "dragover" : ""}`}
+      onMouseDown={() => {
+        activeSide = side;
+      }}
       onDragOver={onDragOver}
       onDragEnter={onDragEnter}
       onDragLeave={onDragLeave}

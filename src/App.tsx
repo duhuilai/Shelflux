@@ -10,6 +10,7 @@ import { Settings } from "./components/Settings/Settings";
 import { ForwardPanel } from "./components/Forward/ForwardPanel";
 import { ConfirmDialog } from "./components/Common/ConfirmDialog";
 import { PromptDialog } from "./components/Common/PromptDialog";
+import { OverwriteDialog } from "./components/Common/OverwriteDialog";
 import { useUiStore } from "./stores/uiStore";
 import { useTabStore } from "./stores/tabStore";
 import { useSettingsStore, resolveTheme } from "./stores/settingsStore";
@@ -238,6 +239,7 @@ export default function App() {
 
       <ConfirmDialog />
       <PromptDialog />
+      <OverwriteDialog />
       <ToastContainer />
       <ContextMenu />
     </div>

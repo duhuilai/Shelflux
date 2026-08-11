@@ -57,26 +57,147 @@
   overflow: hidden;
 }
 
-.sftp-panel {
-  flex: 0 0 50%;
-  width: 50%;
-  max-width: 50%;
-  box-sizing: border-box;
+.sftp-panel-col {
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  min-width: 0;
   overflow: hidden;
   border-right: 1px solid var(--border-soft);
 }
 
-.sftp-panel:last-child {
+.sftp-panel-col:last-child {
   border-right: none;
+}
+
+.sftp-panel {
+  flex: 1 1 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .sftp-panel.dragover {
   background: var(--bg-active);
   outline: 2px dashed var(--accent-blue);
   outline-offset: -2px;
+}
+
+/* 文件夹页签栏 */
+.sftp-foldertabbar {
+  display: flex;
+  align-items: stretch;
+  height: 30px;
+  flex-shrink: 0;
+  background: var(--bg-overlay);
+  border-bottom: 1px solid var(--border-soft);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sftp-foldertab-accent {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-blue);
+  border-right: 1px solid var(--border-soft);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.sftp-foldertab-accent.accent-remote {
+  color: var(--accent-violet);
+}
+
+.sftp-foldertab-scroll {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.sftp-foldertab-scroll::-webkit-scrollbar {
+  height: 0;
+  display: none;
+}
+
+.sftp-foldertab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  color: var(--fg-secondary);
+  border-right: 1px solid var(--border-soft);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 160px;
+  flex-shrink: 0;
+}
+
+.sftp-foldertab:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.sftp-foldertab.active {
+  background: var(--bg-elevated);
+  color: var(--fg-primary);
+  box-shadow: inset 0 -2px 0 var(--accent-blue);
+}
+
+.sftp-foldertab.accent-remote.active {
+  box-shadow: inset 0 -2px 0 var(--accent-violet);
+}
+
+.sftp-foldertab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sftp-foldertab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.sftp-foldertab-close:hover {
+  background: var(--bg-active);
+  color: var(--color-error);
+}
+
+.sftp-foldertab-add {
+  flex-shrink: 0;
+  width: 28px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.sftp-foldertab-add:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
 }
 
 .sftp-panel-header {

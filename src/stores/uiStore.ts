@@ -1,6 +1,13 @@
 // UI 状态管理（弹窗、确认对话框等）
 import { create } from "zustand";
-import type { Server, ServerGroup } from "../types";
+import type { Server, ServerGroup, FileEntry } from "../types";
+
+/** 文件复制粘贴剪贴板（应用内） */
+export interface ClipboardState {
+  side: "local" | "remote";
+  server: Server | null; // 远端复制需要连接信息
+  items: FileEntry[];
+}
 
 interface ServerFormState {
   open: boolean;
@@ -31,6 +38,15 @@ interface PromptState {
   resolve?: (v: string | null) => void;
 }
 
+export type OverwriteChoice = "overwrite" | "rename" | "skip";
+
+interface OverwriteState {
+  open: boolean;
+  title: string;
+  message: string;
+  resolve?: (v: OverwriteChoice) => void;
+}
+
 interface UiStoreState {
   serverForm: ServerFormState;
   serverPickerOpen: boolean;
@@ -38,6 +54,8 @@ interface UiStoreState {
   forwardPanelOpen: boolean;
   confirm: ConfirmState;
   prompt: PromptState;
+  overwrite: OverwriteState;
+  clipboard: ClipboardState | null;
 
   openServerForm: (editing?: Server, groupId?: string | null) => void;
   closeServerForm: () => void;
@@ -64,6 +82,9 @@ interface UiStoreState {
     cancelText?: string;
   }) => Promise<string | null>;
   resolvePrompt: (v: string | null) => void;
+  askOverwrite: (opts: { title: string; message: string }) => Promise<OverwriteChoice>;
+  resolveOverwrite: (v: OverwriteChoice) => void;
+  setClipboard: (c: ClipboardState | null) => void;
 }
 
 export const useUiStore = create<UiStoreState>((set, get) => ({
@@ -73,6 +94,8 @@ export const useUiStore = create<UiStoreState>((set, get) => ({
   forwardPanelOpen: false,
   confirm: { open: false, title: "", message: "" },
   prompt: { open: false, title: "" },
+  overwrite: { open: false, title: "", message: "" },
+  clipboard: null,
 
   openServerForm: (editing, groupId) =>
     set({
@@ -135,4 +158,25 @@ export const useUiStore = create<UiStoreState>((set, get) => ({
     set({ prompt: { open: false, title: "" } });
     r?.(v);
   },
+
+  askOverwrite: (opts) => {
+    return new Promise<OverwriteChoice>((resolve) => {
+      set({
+        overwrite: {
+          open: true,
+          title: opts.title,
+          message: opts.message,
+          resolve,
+        },
+      });
+    });
+  },
+
+  resolveOverwrite: (v) => {
+    const r = get().overwrite.resolve;
+    set({ overwrite: { open: false, title: "", message: "" } });
+    r?.(v);
+  },
+
+  setClipboard: (c) => set({ clipboard: c }),
 }));
