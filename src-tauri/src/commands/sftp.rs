@@ -294,6 +294,45 @@ pub async fn sftp_create_file(
     Ok(())
 }
 
+/// 递归删除 SFTP 目录（先清空内容，再删目录本身）。
+async fn sftp_remove_dir_all(
+    sftp: &Arc<Mutex<SftpSession>>,
+    path: &str,
+) -> Result<(), AppError> {
+    let entries = sftp.lock().await
+        .read_dir(path)
+        .await
+        .map_err(|e| AppError::Sftp(format!("读取目录失败（递归删除）: {e}")))?;
+
+    for entry in entries {
+        let name = entry.file_name();
+        // 跳过 . 和 ..
+        if name == "." || name == ".." {
+            continue;
+        }
+        let full = if path.ends_with('/') {
+            format!("{path}{name}")
+        } else {
+            format!("{path}/{name}")
+        };
+        let ft = entry.file_type();
+        if ft.is_dir() {
+            Box::pin(sftp_remove_dir_all(sftp, &full)).await?;
+        } else {
+            sftp.lock().await
+                .remove_file(&full)
+                .await
+                .map_err(|e| AppError::Sftp(format!("删除文件失败: {full}, {e}")))?;
+        }
+    }
+
+    // 目录已清空，现在可以安全 remove_dir
+    sftp.lock().await
+        .remove_dir(path)
+        .await
+        .map_err(|e| AppError::Sftp(format!("删除目录失败: {path}, {e}")))
+}
+
 #[tauri::command]
 pub async fn sftp_remove(
     app: AppHandle,
@@ -307,10 +346,7 @@ pub async fn sftp_remove(
         .await
         .map_err(|_| AppError::NotFound(path.clone()))?;
     if meta.is_dir() {
-        sftp.lock().await
-            .remove_dir(path.as_str())
-            .await
-            .map_err(|e| AppError::Sftp(format!("删除目录失败: {e}")))?;
+        sftp_remove_dir_all(&sftp, &path).await?;
     } else {
         sftp.lock().await
             .remove_file(path.as_str())

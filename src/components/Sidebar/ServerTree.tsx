@@ -391,7 +391,9 @@ function ServerNode({
         onContextMenu={handleContextMenu}
         title={`双击连接 ${server.host}:${server.port || "default"}`}
       >
-        <span className="tree-chevron" style={{ visibility: "hidden" }} />
+        <span className="tree-drag-handle" title="拖拽以调整顺序或移动到其他分组">
+          <DragHandleIcon />
+        </span>
         <span className={`tree-icon server-${server.protocol}`}>
           <ServerProtocolIcon kind={server.protocol} />
         </span>
@@ -431,6 +433,19 @@ function ChevronIcon() {
   return (
     <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
       <path d="M3 2l4 3-4 3" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function DragHandleIcon() {
+  return (
+    <svg width="10" height="14" viewBox="0 0 10 14" fill="none">
+      <circle cx="3" cy="3" r="1.1" fill="currentColor" />
+      <circle cx="7" cy="3" r="1.1" fill="currentColor" />
+      <circle cx="3" cy="7" r="1.1" fill="currentColor" />
+      <circle cx="7" cy="7" r="1.1" fill="currentColor" />
+      <circle cx="3" cy="11" r="1.1" fill="currentColor" />
+      <circle cx="7" cy="11" r="1.1" fill="currentColor" />
     </svg>
   );
 }

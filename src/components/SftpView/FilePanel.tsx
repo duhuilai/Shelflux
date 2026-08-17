@@ -20,10 +20,11 @@ interface Props {
   side: "local" | "remote";
 }
 
-/** 列宽约束（px）：名称列为自适应列，两个固定列不得把它挤没 */
+/** 列宽约束（px）：名称列为自适应列，三个固定列不得把它挤没 */
 const MIN_NAME_W = 100;
 const MIN_SIZE_W = 56;
 const MIN_TIME_W = 96;
+const MIN_TYPE_W = 80;
 
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(Math.max(v, lo), hi < lo ? lo : hi);
@@ -59,6 +60,10 @@ export function FilePanel({
     item: FileEntry | null;
   } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  // 排序状态
+  type SortKey = "name" | "size" | "modified" | "type";
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   // 打开方式子菜单用的应用列表（右键文件时预加载）
   const [openWithApps, setOpenWithApps] = useState<Array<{ name: string; path: string }>>([]);
   const [openWithFilePath, setOpenWithFilePath] = useState<string | null>(null);
@@ -222,7 +227,7 @@ export function FilePanel({
     }
   }, [side, currentPath, server, onTransfer, askOverwrite, askPrompt, load]);
 
-  // 监听 Ctrl+C / Ctrl+V（仅作用于当前获得焦点的面板；输入框/弹窗中不拦截）
+  // 监听 Ctrl+C / Ctrl+V / Delete（仅作用于当前获得焦点的面板；输入框/弹窗中不拦截）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -237,9 +242,19 @@ export function FilePanel({
       const st = useUiStore.getState();
       if (st.confirm.open || st.prompt.open || st.overwrite.open) return;
       if (activeSide !== side) return;
-      if (!(e.ctrlKey || e.metaKey)) return;
 
       const key = e.key.toLowerCase();
+      // Delete / Backspace：批量删除选中项
+      if (key === "delete" || key === "backspace") {
+        if (selected.size > 0) {
+          e.preventDefault();
+          void deleteItems();
+        }
+        return;
+      }
+      // 以下需要 Ctrl/Meta
+      if (!(e.ctrlKey || e.metaKey)) return;
+
       if (key === "c") {
         if (selected.size === 0) return;
         if (copySelection()) e.preventDefault();
@@ -491,26 +506,46 @@ export function FilePanel({
     }
   };
 
-  const deleteItem = async (item: FileEntry) => {
+  /** 删除：优先删除全部选中项，无选中时只删当前项 */
+  const deleteItems = async (item?: FileEntry) => {
+    const items = selected.size > 0
+      ? entries.filter((e) => selected.has(e.path))
+      : item
+        ? [item]
+        : [];
+    if (items.length === 0) return;
+
+    const names = items.map((i) => i.name);
+    const msg = items.length === 1
+      ? `确定要删除 "${names[0]}" 吗？此操作不可撤销。`
+      : `确定要删除选中的 ${items.length} 项吗？此操作不可撤销。\n\n${names.slice(0, 5).join("\n")}${names.length > 5 ? `\n... 等 ${names.length} 项` : ""}`;
+
     const ok = await askConfirm({
       title: "确认删除",
-      message: `确定要删除 "${item.name}" 吗？此操作不可撤销。`,
+      message: msg,
       confirmText: "删除",
       danger: true,
     });
     if (!ok) return;
+
     try {
-      if (side === "local") {
-        await invoke("local_remove", { path: item.path });
-      } else {
-        await invoke("sftp_remove", { server, path: item.path });
+      for (const it of items) {
+        if (side === "local") {
+          await invoke("local_remove", { path: it.path });
+        } else {
+          await invoke("sftp_remove", { server, path: it.path });
+        }
       }
+      setSelected(new Set());
       await load(currentPath);
-      toast.success("已删除", item.name);
+      toast.success("已删除", `${items.length} 项`);
     } catch (e: any) {
       toast.error("删除失败", e.toString());
     }
   };
+
+  // 兼容旧调用（单文件场景）
+  const deleteItem = (item: FileEntry) => deleteItems(item);
 
   const openItem = async (item: FileEntry) => {
     try {
@@ -746,10 +781,49 @@ export function FilePanel({
   };
 
   // 拖拽调整列宽（单位 px）：
-  //   colIndex=0 → 名称/大小 边界：名称是 auto 列，右移即压缩「大小」列
-  //   colIndex=1 → 大小/修改时间 边界：两个固定列之间此消彼长，名称列不变
-  // 始终保证 大小 + 修改时间 <= 表宽 - MIN_NAME，名称列永远有可用空间，表不会溢出分栏
-  const [dragCols, setDragCols] = useState<[number, number]>([FIXED_SIZE_COL, FIXED_TIME_COL]);
+  //   colIndex=0 → 名称/大小 边界
+  //   colIndex=1 → 大小/修改时间 边界
+  //   colIndex=2 → 修改时间/类型 边界
+  const [dragCols, setDragCols] = useState<[number, number, number]>([FIXED_SIZE_COL, FIXED_TIME_COL, MIN_TYPE_W]);
+
+  // 排序切换：同列反转方向，不同列默认升序
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  // 排序后的 entries（文件夹始终排在最前，同类型内按排序键排列）
+  const sortedEntries = [...entries].sort((a, b) => {
+    // 文件夹优先
+    if (a.kind === "dir" && b.kind !== "dir") return -1;
+    if (a.kind !== "dir" && b.kind === "dir") return 1;
+    let cmp = 0;
+    switch (sortKey) {
+      case "name":
+        cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+        break;
+      case "size":
+        cmp = a.size - b.size;
+        break;
+      case "modified": {
+        const ma = a.modified ?? 0;
+        const mb = b.modified ?? 0;
+        cmp = ma - mb;
+        break;
+      }
+      case "type": {
+        const ea = extOf(a.name).toLowerCase();
+        const eb = extOf(b.name).toLowerCase();
+        cmp = ea.localeCompare(eb);
+        break;
+      }
+    }
+    return sortDir === "asc" ? cmp : -cmp;
+  });
 
   const startResize = (e: React.MouseEvent, colIndex: number) => {
     e.preventDefault();
@@ -757,7 +831,7 @@ export function FilePanel({
     const tableWidth = filesRef.current?.clientWidth ?? 0;
     if (tableWidth <= 0) return;
     const startX = e.clientX;
-    const [startSize, startTime] = dragCols;
+    const [startSize, startTime, startType] = dragCols;
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
 
@@ -765,23 +839,30 @@ export function FilePanel({
       const delta = ev.clientX - startX;
       let nextSize = startSize;
       let nextTime = startTime;
+      let nextType = startType;
 
       if (colIndex === 0) {
-        const maxSize = tableWidth - MIN_NAME_W - startTime;
+        const maxSize = tableWidth - MIN_NAME_W - startTime - startType;
         nextSize = clamp(startSize - delta, MIN_SIZE_W, Math.max(MIN_SIZE_W, maxSize));
+      } else if (colIndex === 1) {
+        const totalST = startSize + startTime;
+        nextSize = clamp(startSize + delta, MIN_SIZE_W, totalST - MIN_TIME_W);
+        nextTime = totalST - nextSize;
       } else {
-        const total = startSize + startTime;
-        nextSize = clamp(startSize + delta, MIN_SIZE_W, total - MIN_TIME_W);
-        nextTime = total - nextSize;
+        const totalTT = startTime + startType;
+        nextTime = clamp(startTime + delta, MIN_TIME_W, totalTT - MIN_TYPE_W);
+        nextType = totalTT - nextTime;
       }
 
-      const maxFixed = Math.max(MIN_SIZE_W + MIN_TIME_W, tableWidth - MIN_NAME_W);
-      if (nextSize + nextTime > maxFixed) {
-        const scale = maxFixed / (nextSize + nextTime);
+      const maxFixed = Math.max(MIN_SIZE_W + MIN_TIME_W + MIN_TYPE_W, tableWidth - MIN_NAME_W);
+      const totalFixed = nextSize + nextTime + nextType;
+      if (totalFixed > maxFixed) {
+        const scale = maxFixed / totalFixed;
         nextSize = Math.max(MIN_SIZE_W, nextSize * scale);
-        nextTime = Math.max(MIN_TIME_W, maxFixed - nextSize);
+        nextTime = Math.max(MIN_TIME_W, nextTime * scale);
+        nextType = Math.max(MIN_TYPE_W, nextType * scale);
       }
-      setDragCols([Math.round(nextSize), Math.round(nextTime)]);
+      setDragCols([Math.round(nextSize), Math.round(nextTime), Math.round(nextType)]);
     };
     const onUp = () => {
       document.removeEventListener("mousemove", onMove);
@@ -856,33 +937,50 @@ export function FilePanel({
           <div className="sftp-files-list" ref={tableRef}>
             {/* 表头（sticky 吸顶） */}
             <div className="sftp-grid-head-row">
-              <div className="sftp-grid-cell sftp-grid-head name">
+              <div className={`sftp-grid-cell sftp-grid-head name ${sortKey === "name" ? "sorted" : ""}`} onClick={() => handleSort("name")}>
                 名称
+                <span className={`sort-arrow ${sortKey === "name" ? (sortDir === "asc" ? "up" : "down") : ""}`}>▲</span>
                 <span
                   className="col-resizer"
                   onMouseDown={(e) => startResize(e, 0)}
                 />
               </div>
               <div
-                className="sftp-grid-cell sftp-grid-head size"
+                className={`sftp-grid-cell sftp-grid-head size ${sortKey === "size" ? "sorted" : ""}`}
                 style={{ width: `${dragCols[0]}px` }}
+                onClick={() => handleSort("size")}
               >
                 大小
+                <span className={`sort-arrow ${sortKey === "size" ? (sortDir === "asc" ? "up" : "down") : ""}`}>▲</span>
                 <span
                   className="col-resizer"
                   onMouseDown={(e) => startResize(e, 1)}
                 />
               </div>
               <div
-                className="sftp-grid-cell sftp-grid-head modified"
+                className={`sftp-grid-cell sftp-grid-head modified ${sortKey === "modified" ? "sorted" : ""}`}
                 style={{ width: `${dragCols[1]}px` }}
+                onClick={() => handleSort("modified")}
               >
                 修改时间
+                <span className={`sort-arrow ${sortKey === "modified" ? (sortDir === "asc" ? "up" : "down") : ""}`}>▲</span>
+                <span
+                  className="col-resizer"
+                  onMouseDown={(e) => startResize(e, 2)}
+                />
+              </div>
+              <div
+                className={`sftp-grid-cell sftp-grid-head filetype ${sortKey === "type" ? "sorted" : ""}`}
+                style={{ width: `${dragCols[2]}px` }}
+                onClick={() => handleSort("type")}
+              >
+                类型
+                <span className={`sort-arrow ${sortKey === "type" ? (sortDir === "asc" ? "up" : "down") : ""}`}>▲</span>
               </div>
             </div>
 
             {/* 数据行 */}
-            {entries.map((item) => (
+            {sortedEntries.map((item) => (
               <div
                 key={item.path}
                 className={`sftp-grid-row ${selected.has(item.path) ? "selected" : ""}`}
@@ -895,7 +993,7 @@ export function FilePanel({
                 <div className="sftp-grid-cell name">
                   <div className="sftp-file-name">
                     <span className={`sftp-file-icon ${item.kind}`}>
-                      {item.kind === "dir" ? <FolderIcon /> : item.kind === "symlink" ? <LinkIcon /> : <FileIcon />}
+                      {item.kind === "dir" ? <FolderIcon /> : item.kind === "symlink" ? <SymlinkIcon /> : getFileTypeIcon(item.name)}
                     </span>
                     <span className="sftp-file-name-text" title={item.path}>
                       {item.name}
@@ -913,6 +1011,12 @@ export function FilePanel({
                   style={{ width: `${dragCols[1]}px` }}
                 >
                   {formatDate(item.modified)}
+                </div>
+                <div
+                  className="sftp-grid-cell filetype"
+                  style={{ width: `${dragCols[2]}px` }}
+                >
+                  {item.kind === "dir" ? "文件夹" : item.kind === "symlink" ? "链接" : extOf(item.name).toUpperCase() || "—"}
                 </div>
               </div>
             ))}
@@ -937,6 +1041,199 @@ export function FilePanel({
 }
 
 // ===== Icons =====
+// ── 通用文档底图：白底折角 + 底部类型色带 + 扩展名文字 + 可选图形 ──
+function DocPage({ accent, label, glyph }: { accent: string; label: string; glyph?: JSX.Element }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M3.1 1.3h7L14 5.2v9.3c0 .3-.2.5-.5.5H3.6c-.3 0-.5-.2-.5-.5V1.8c0-.3.2-.5.5-.5z" fill="#ffffff" stroke="#c2cad4" strokeWidth="0.6" />
+      <path d="M10 1.3L14 5.2h-3.5c-.3 0-.5-.2-.5-.5V1.3z" fill="#e7ecf1" stroke="#c2cad4" strokeWidth="0.35" />
+      {glyph}
+      <path d="M2.6 11h10.8V14c0 .3-.2.5-.5.5H3.1c-.3 0-.5-.2-.5-.5V11z" fill={accent} />
+      <text x="8" y="13.35" fill="#ffffff" fontSize="3.3" fontWeight="800" fontFamily="Arial, Helvetica, sans-serif" textAnchor="middle" letterSpacing="0.1">{label}</text>
+    </svg>
+  );
+}
+// ── 小图形（白色叠加在文档上方）──
+function GImage() {
+  return (<g opacity="0.92"><circle cx="10.4" cy="4.1" r="1" fill="#fff" /><path d="M4.2 9.4 6.4 6.6 8.3 8.5 9.6 7 11.8 9.6H4.2z" fill="#fff" /></g>);
+}
+function GVideo() {
+  return (<path d="M6.4 4.8 6.4 8.4 10.2 6.6z" fill="#fff" opacity="0.95" />);
+}
+function GAudio() {
+  return (<g fill="#fff" opacity="0.92"><ellipse cx="6.4" cy="7.4" rx="0.9" ry="0.75" /><ellipse cx="9.4" cy="6.9" rx="0.9" ry="0.75" /><rect x="7.1" y="4.6" width="0.5" height="2.9" /><rect x="10.1" y="4.1" width="0.5" height="2.9" /><rect x="7.1" y="4.6" width="3.5" height="0.5" /></g>);
+}
+function GBox() {
+  return (<g stroke="#fff" strokeWidth="0.55" fill="none" opacity="0.92"><rect x="5" y="4.8" width="6" height="4.4" rx="0.6" /><line x1="5" y1="6" x2="11" y2="6" /><path d="M5.6 4.8v4.4M10.4 4.8v4.4" /></g>);
+}
+function GDisc() {
+  return (<g fill="none" stroke="#fff" strokeWidth="0.6" opacity="0.92"><circle cx="8" cy="6.6" r="3" /><circle cx="8" cy="6.6" r="0.85" fill="#fff" /></g>);
+}
+function GDb() {
+  return (<g opacity="0.92"><ellipse cx="8" cy="5.2" rx="3" ry="1.1" fill="#fff" /><path d="M5 5.2v3.6c0 .6 1.34 1.1 3 1.1s3-.5 3-1.1V5.2" fill="none" stroke="#fff" strokeWidth="0.6" /><path d="M5 6.8c0 .6 1.34 1.1 3 1.1s3-.5 3-1.1" fill="none" stroke="#fff" strokeWidth="0.6" /></g>);
+}
+function GKey() {
+  return (<g stroke="#fff" strokeWidth="0.6" fill="none" opacity="0.92" strokeLinecap="round"><circle cx="6" cy="5.6" r="1.5" /><path d="M7.1 6.7 9.6 9.2M8.9 8.5l1 1M8.1 7.7l1 1" /></g>);
+}
+function GCode() {
+  return (<g stroke="#fff" strokeWidth="0.8" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.95"><path d="M6 4.8 4 6.8 6 8.8M10 4.8 12 6.8 10 8.8M8.5 4.2 7.5 9.1" /></g>);
+}
+function GSheet() {
+  return (<g stroke="#fff" strokeWidth="0.6" fill="none" opacity="0.9"><rect x="5" y="4.4" width="6" height="4.2" rx="0.4" /><line x1="5" y1="8" x2="11" y2="8" /></g>);
+}
+function GGrid() {
+  return (<g stroke="#fff" strokeWidth="0.5" fill="none" opacity="0.9"><rect x="5" y="4.2" width="6" height="4.2" rx="0.4" /><line x1="7" y1="4.2" x2="7" y2="8.4" /><line x1="9" y1="4.2" x2="9" y2="8.4" /><line x1="5" y1="5.8" x2="11" y2="5.8" /><line x1="5" y1="7" x2="11" y2="7" /></g>);
+}
+function GLines() {
+  return (<g stroke="#fff" strokeWidth="0.7" strokeLinecap="round" opacity="0.9"><line x1="5" y1="4.6" x2="11" y2="4.6" /><line x1="5" y1="6.1" x2="11" y2="6.1" /><line x1="5" y1="7.6" x2="9" y2="7.6" /></g>);
+}
+function GBook() {
+  return (<g fill="#fff" opacity="0.92"><path d="M8 4.4c-1.2-.7-2.6-.7-3.6 0v7c1-.7 2.4-.7 3.6 0z" /><path d="M8 4.4c1.2-.7 2.6-.7 3.6 0v7c-1 .7-2.4.7-3.6 0z" opacity="0.7" /></g>);
+}
+function GGear() {
+  return (<g fill="#fff" opacity="0.92"><path d="M8 3.2l.9 1.7 1.9.2-.9 1.7.9 1.7-1.9-.2L8 10.8l-.9-1.7-1.9.2.9-1.7L6.2 6.8l1.9-.2z" /></g>);
+}
+function GMd() {
+  return (<g stroke="#fff" strokeWidth="0.7" strokeLinecap="round" opacity="0.9" fill="none"><line x1="5" y1="4.6" x2="5" y2="7.6" /><line x1="6.7" y1="4.6" x2="6.7" y2="7.6" /><line x1="8.4" y1="4.6" x2="8.4" y2="7.6" /><path d="M5 8.4h6" /></g>);
+}
+function GShell() {
+  return (<g fill="#fff" opacity="0.92"><path d="M6.5 4.6 4.6 6.6 6.5 8.6V7.4h2V7H6.5z" /><rect x="8.6" y="7.4" width="1.6" height="0.7" /></g>);
+}
+function GCoffee() {
+  return (<g opacity="0.9"><path d="M5 5h4.5v2.6c0 1-1 1.6-2.2 1.6S5 8.6 5 7.6z" fill="#fff" /><path d="M9.5 5.4h1c.5 0 .8.4.8.9s-.3.9-.8.9H9.5" fill="none" stroke="#fff" strokeWidth="0.5" /><path d="M6 9.6h3" stroke="#fff" strokeWidth="0.5" /></g>);
+}
+function GGem() {
+  return (<g opacity="0.92"><path d="M6 4.6h4l1 1.6-3 3.4-3-3.4z" fill="#fff" /><path d="M6 4.6 5 6.2h6L10 4.6M5.5 6.2 8 9.6M10.5 6.2 8 9.6M6.5 6.2h3" stroke="#fff" strokeWidth="0.4" fill="none" /></g>);
+}
+function GFont() {
+  return (<path d="M8 4.4 5.4 9h1.1l.5-1.3h2l.5 1.3h1.1L8 4.4zM7.3 7.2 8 5.4l.7 1.8z" fill="#fff" opacity="0.92" />);
+}
+
+// ── 文件夹（清爽双色）──
+function FolderIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M1.7 3.4c0-.4.3-.7.7-.7h3l1.1 1.1h6.1c.4 0 .7.3.7.7v6.8c0 .4-.3.7-.7.7H2.4c-.4 0-.7-.3-.7-.7V3.4z" fill="#E8A93A" />
+      <path d="M1.7 5.2h12.6v5c0 .4-.3.7-.7.7H2.4c-.4 0-.7-.3-.7-.7V5.2z" fill="#FFC857" />
+    </svg>
+  );
+}
+// ── 软链接（文档 + 链接徽标）──
+function SymlinkIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M3.1 1.3h7L14 5.2v9.3c0 .3-.2.5-.5.5H3.6c-.3 0-.5-.2-.5-.5V1.8c0-.3.2-.5.5-.5z" fill="#ffffff" stroke="#c2cad4" strokeWidth="0.6" />
+      <path d="M10 1.3L14 5.2h-3.5c-.3 0-.5-.2-.5-.5V1.3z" fill="#e7ecf1" stroke="#c2cad4" strokeWidth="0.35" />
+      <circle cx="11" cy="11" r="3.1" fill="#3B82F6" />
+      <g stroke="#fff" strokeWidth="0.9" fill="none" strokeLinecap="round">
+        <path d="M10.1 11.3 11.7 9.7M11.9 10 13.5 11.6" />
+      </g>
+    </svg>
+  );
+}
+
+// ── 各类文件图标（白底文档 + 类型色带 + 扩展名 + 图形）──
+function WordIcon() { return <DocPage accent="#2B579A" label="DOC" />; }
+function ExcelIcon() { return <DocPage accent="#217346" label="XLS" glyph={<GGrid />} />; }
+function PptIcon() { return <DocPage accent="#D24726" label="PPT" glyph={<GSheet />} />; }
+function PdfIcon() { return <DocPage accent="#E03A2F" label="PDF" />; }
+function TextIcon() { return <DocPage accent="#7A8794" label="TXT" glyph={<GLines />} />; }
+function MarkdownIcon() { return <DocPage accent="#2D2D2D" label="MD" glyph={<GMd />} />; }
+function BookIcon() { return <DocPage accent="#B45309" label="BOOK" glyph={<GBook />} />; }
+function ImageIcon() { return <DocPage accent="#2BA84A" label="IMG" glyph={<GImage />} />; }
+function VideoIcon() { return <DocPage accent="#7C4DFF" label="VID" glyph={<GVideo />} />; }
+function AudioIcon() { return <DocPage accent="#F59E0B" label="AUD" glyph={<GAudio />} />; }
+function ArchiveIcon() { return <DocPage accent="#C9972B" label="ZIP" glyph={<GBox />} />; }
+function DiskImageIcon() { return <DocPage accent="#5A6B7B" label="ISO" glyph={<GDisc />} />; }
+function ConfigIcon() { return <DocPage accent="#0F9D9D" label="CFG" glyph={<GGear />} />; }
+function HtmlIcon() { return <DocPage accent="#E44D26" label="HTML" glyph={<GCode />} />; }
+function CssIcon() { return <DocPage accent="#2965F1" label="CSS" glyph={<GCode />} />; }
+function WebCompIcon() { return <DocPage accent="#41B883" label="VUE" glyph={<GCode />} />; }
+function JsIcon() { return <DocPage accent="#E8A400" label="JS" />; }
+function TsIcon() { return <DocPage accent="#2D79C7" label="TS" />; }
+function PythonIcon() { return <DocPage accent="#3A76A8" label="PY" />; }
+function ShellIcon() { return <DocPage accent="#2E3138" label="SH" glyph={<GShell />} />; }
+function JavaIcon() { return <DocPage accent="#E76F00" label="JAVA" glyph={<GCoffee />} />; }
+function CppIcon() { return <DocPage accent="#00599C" label="C++" />; }
+function GoIcon() { return <DocPage accent="#00ADD8" label="GO" />; }
+function RustIcon() { return <DocPage accent="#CE412B" label="RS" glyph={<GGear />} />; }
+function RubyIcon() { return <DocPage accent="#CC342D" label="RB" glyph={<GGem />} />; }
+function PhpIcon() { return <DocPage accent="#777BB4" label="PHP" />; }
+function SqlIcon() { return <DocPage accent="#1F8A9E" label="SQL" glyph={<GDb />} />; }
+function CodeIcon() { return <DocPage accent="#5C6BC0" label="CODE" glyph={<GCode />} />; }
+function ExeIcon() { return <DocPage accent="#3A3F47" label="EXE" glyph={<GGear />} />; }
+function DatabaseIcon() { return <DocPage accent="#1F8A9E" label="DB" glyph={<GDb />} />; }
+function FontIcon() { return <DocPage accent="#8B5CF6" label="FONT" glyph={<GFont />} />; }
+function KeyIcon() { return <DocPage accent="#2E9E5B" label="KEY" glyph={<GKey />} />; }
+function BackupIcon() { return <DocPage accent="#6B7785" label="BAK" glyph={<GDisc />} />; }
+function LogIcon() { return <DocPage accent="#5A6B7B" label="LOG" glyph={<GLines />} />; }
+function FileIcon() { return <DocPage accent="#9AA5B1" label="FILE" />; }
+function SwiftIcon() { return <DocPage accent="#F05138" label="SWIFT" />; }
+function KotlinIcon() { return <DocPage accent="#A97BFF" label="KT" />; }
+function DartIcon() { return <DocPage accent="#0175C2" label="DART" />; }
+function CSharpIcon() { return <DocPage accent="#239120" label="CS" />; }
+function LuaIcon() { return <DocPage accent="#2C5AA0" label="LUA" />; }
+function RLangIcon() { return <DocPage accent="#276DC3" label="R" />; }
+
+// ── 按扩展名映射到图标 ──
+function getFileTypeIcon(name: string) {
+  const ext = name.split('.').pop()?.toLowerCase() || '';
+  // 文档 / 办公
+  if (['doc', 'docx', 'docm', 'rtf', 'odt'].includes(ext)) return <WordIcon />;
+  if (['xls', 'xlsx', 'xlsm', 'xlsb', 'csv', 'ods'].includes(ext)) return <ExcelIcon />;
+  if (['ppt', 'pptx', 'pptm', 'odp', 'key'].includes(ext)) return <PptIcon />;
+  if (ext === 'pdf') return <PdfIcon />;
+  if (['txt', 'text'].includes(ext)) return <TextIcon />;
+  if (['md', 'markdown', 'mdx'].includes(ext)) return <MarkdownIcon />;
+  if (['epub', 'mobi', 'azw', 'azw3', 'fb2'].includes(ext)) return <BookIcon />;
+  // 图片
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'icns', 'avif', 'tiff', 'tif', 'heic', 'heif', 'raw', 'cr2', 'nef'].includes(ext)) return <ImageIcon />;
+  // 视频
+  if (['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v', '3gp', 'mpg', 'mpeg', 'vob', 'ogv', 'rm', 'rmvb'].includes(ext)) return <VideoIcon />;
+  // 音频
+  if (['mp3', 'wav', 'flac', 'ogg', 'oga', 'aac', 'wma', 'm4a', 'opus', 'ape', 'mid', 'midi', 'aiff', 'caf'].includes(ext)) return <AudioIcon />;
+  // 压缩 / 归档
+  if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'zst', 'tgz', 'tbz2', 'lz', 'lz4', 'z', 'cab', 'ace', 'arj'].includes(ext)) return <ArchiveIcon />;
+  // 磁盘镜像
+  if (['iso', 'img', 'dmg', 'vhd', 'vhdx', 'vmdk', 'vdi', 'qcow2', 'wim', 'esd', 'sparseimage'].includes(ext)) return <DiskImageIcon />;
+  // 代码 / 标记
+  if (['js', 'jsx', 'mjs', 'cjs'].includes(ext)) return <JsIcon />;
+  if (['ts', 'tsx', 'mts', 'cts'].includes(ext)) return <TsIcon />;
+  if (['py', 'pyw', 'pyi'].includes(ext)) return <PythonIcon />;
+  if (['sh', 'bash', 'zsh', 'ksh', 'fish'].includes(ext)) return <ShellIcon />;
+  if (['json', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'config', 'env', 'properties', 'editorconfig', 'npmrc', 'gitignore', 'gitattributes'].includes(ext)) return <ConfigIcon />;
+  if (['html', 'htm', 'xhtml'].includes(ext)) return <HtmlIcon />;
+  if (['css', 'scss', 'less', 'sass', 'styl'].includes(ext)) return <CssIcon />;
+  if (['vue', 'svelte'].includes(ext)) return <WebCompIcon />;
+  if (['java', 'class', 'jar'].includes(ext)) return <JavaIcon />;
+  if (['c', 'h', 'cpp', 'cc', 'cxx', 'hpp', 'hxx', 'ino'].includes(ext)) return <CppIcon />;
+  if (['go'].includes(ext)) return <GoIcon />;
+  if (['rs'].includes(ext)) return <RustIcon />;
+  if (['rb'].includes(ext)) return <RubyIcon />;
+  if (['php'].includes(ext)) return <PhpIcon />;
+  if (['sql'].includes(ext)) return <SqlIcon />;
+  if (['swift'].includes(ext)) return <SwiftIcon />;
+  if (['kt', 'kts'].includes(ext)) return <KotlinIcon />;
+  if (['dart'].includes(ext)) return <DartIcon />;
+  if (['cs'].includes(ext)) return <CSharpIcon />;
+  if (['lua'].includes(ext)) return <LuaIcon />;
+  if (['r', 'rmd'].includes(ext)) return <RLangIcon />;
+  if (['hs', 'ml', 'mli', 'fs', 'fsi', 'fsx', 'ex', 'exs', 'erl', 'hrl', 'clj', 'cljs', 'scala', 'groovy', 'gradle', 'proto', 'graphql', 'gql', 'vim', 'ps1', 'psm1', 'bat', 'cmd', 'asm', 's', 'v', 'sv', 'svh', 'vh', 'dockerfile', 'makefile', 'cmake', 'tf', 'hcl', 'nix', 'pl', 'pm', 'vb', 'pas', 'd', 'nim', 'zig'].includes(ext)) return <CodeIcon />;
+  // 可执行 / 应用 / 安装包
+  if (['exe', 'msi', 'dll', 'so', 'dylib', 'bin', 'app', 'apk', 'deb', 'rpm', 'run', 'out'].includes(ext)) return <ExeIcon />;
+  // 数据库
+  if (['db', 'sqlite', 'sqlite3', 'sqlitedb', 'mdb', 'accdb', 'mdf', 'ldf', 'dump', 'dat'].includes(ext)) return <DatabaseIcon />;
+  // 字体
+  if (['ttf', 'otf', 'woff', 'woff2', 'eot', 'fon', 'ttc'].includes(ext)) return <FontIcon />;
+  // 证书 / 密钥
+  if (['pem', 'crt', 'cer', 'cert', 'crl', 'key', 'p12', 'pfx', 'ca-bundle', 'csr', 'pub', 'asc', 'gpg', 'pgp'].includes(ext)) return <KeyIcon />;
+  // 备份
+  if (['bak', 'old', 'backup', 'gho', 'tib'].includes(ext)) return <BackupIcon />;
+  // 日志
+  if (['log', 'logs'].includes(ext)) return <LogIcon />;
+  // 默认
+  return <FileIcon />;
+}
 function UpIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -965,22 +1262,6 @@ function FilePlusIcon() {
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
       <path d="M3 1.5h5l2.5 2.5V11c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1V2.5c0-.6.4-1 1-1z" stroke="currentColor" strokeWidth="1.1" fill="none" />
       <path d="M6.5 6.5v3M5 8h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function FolderIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M1.5 3.5C1.5 3 1.9 2.5 2.5 2.5h2.7c.4 0 .8.2 1 .5L7 4h4.5c.6 0 1 .4 1 1v5.5c0 .6-.4 1-1 1H2.5c-.6 0-1-.4-1-1V3.5z" fill="currentColor" fillOpacity="0.18" />
-      <path d="M1.5 3.5C1.5 3 1.9 2.5 2.5 2.5h2.7c.4 0 .8.2 1 .5L7 4h4.5c.6 0 1 .4 1 1v5.5c0 .6-.4 1-1 1H2.5c-.6 0-1-.4-1-1V3.5z" stroke="currentColor" strokeWidth="1" fill="none" />
-    </svg>
-  );
-}
-function FileIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path d="M3 1.5h5l2.5 2.5V11c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1V2.5c0-.6.4-1 1-1z" stroke="currentColor" strokeWidth="1.1" fill="none" />
-      <path d="M8 1.5V4h2.5" stroke="currentColor" strokeWidth="1" fill="none" />
     </svg>
   );
 }

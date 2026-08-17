@@ -13,7 +13,18 @@ dist-ssr
 
 # Tauri
 src-tauri/target
+src-tauri/target-*
+src-tauri/target-zkpd
+src-tauri/target-zkpd2
 src-tauri/gen
+
+# Frontend build artifacts (alternate dirs used during dev)
+dist-v2
+dist-ssr
+
+# Stray junk files
+nul
+vite.config.d.ts
 
 # Cargo.lock is committed for this binary app (pins deps for reproducible CI builds)
 

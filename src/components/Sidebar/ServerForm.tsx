@@ -6,6 +6,7 @@ import { useServerStore } from "../../stores/serverStore";
 import { useUiStore } from "../../stores/uiStore";
 import { toast } from "../../stores/toastStore";
 import { basename } from "../../utils/format";
+import { invoke } from "@tauri-apps/api/core";
 
 interface Props {
   onClose: () => void;
@@ -42,6 +43,7 @@ export function ServerForm({ onClose }: Props) {
     };
   });
   const [authTab, setAuthTab] = useState<"password" | "key">("password");
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     if (editing?.privateKey) setAuthTab("key");
@@ -84,9 +86,47 @@ export function ServerForm({ onClose }: Props) {
     setForm((f) => ({ ...f, proxy: next.kind === "none" ? undefined : next }));
   };
 
+  const canTest = !!(form.host && form.username);
+
+  // 测试连接：组装一个临时 ServerConfig 直接交给后端，不写入连接池
+  const handleTest = async () => {
+    if (!canTest) {
+      toast.error("请先填写主机和用户名");
+      return;
+    }
+    setTesting(true);
+    try {
+      const payload = {
+        id: "__test__",
+        protocol: form.protocol,
+        host: form.host,
+        port: form.port || 0,
+        username: form.username,
+        password: form.password || "",
+        privateKey: form.privateKey || "",
+        passphrase: form.passphrase || "",
+        proxy: form.proxy ?? null,
+      };
+      const res = (await invoke<any>("test_connection", { server: payload })) as {
+        success: boolean;
+        message: string;
+        fingerprint?: string;
+      };
+      if (res?.success) {
+        toast.success("连接成功", res.message + (res.fingerprint ? ` · 主机指纹 ${res.fingerprint}` : ""));
+      } else {
+        toast.error("连接失败", res?.message || "未知错误");
+      }
+    } catch (e: any) {
+      toast.error("连接失败", e?.toString ? e.toString() : String(e));
+    } finally {
+      setTesting(false);
+    }
+  };
+
   return (
     <div className="modal-mask" onClick={onClose}>
-      <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit} style={{ width: 520 }}>
+      <form className="modal server-form-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit} style={{ width: 520 }}>
         <div className="modal-header">
           <span>{isEdit ? "编辑服务器" : "新建服务器"}</span>
           <button type="button" className="btn btn-ghost btn-icon" onClick={onClose}>
@@ -215,16 +255,12 @@ export function ServerForm({ onClose }: Props) {
               </div>
 
               {authTab === "password" ? (
-                <div style={{ marginBottom: 10 }}>
-                  <div className="label">密码</div>
-                  <input
-                    className="input"
-                    type="password"
-                    placeholder="••••••••"
-                    value={form.password || ""}
-                    onChange={(e) => setField("password", e.target.value)}
-                  />
-                </div>
+                <PasswordInput
+                  label="密码"
+                  placeholder="••••••••"
+                  value={form.password || ""}
+                  onChange={(v) => setField("password", v)}
+                />
               ) : (
                 <>
                   <div style={{ marginBottom: 10 }}>
@@ -242,15 +278,11 @@ export function ServerForm({ onClose }: Props) {
                       }}
                     />
                   </div>
-                  <div style={{ marginBottom: 10 }}>
-                    <div className="label">私钥口令（可选）</div>
-                    <input
-                      className="input"
-                      type="password"
-                      value={form.passphrase || ""}
-                      onChange={(e) => setField("passphrase", e.target.value)}
-                    />
-                  </div>
+                <PasswordInput
+                  label="私钥口令（可选）"
+                  value={form.passphrase || ""}
+                  onChange={(v) => setField("passphrase", v)}
+                />
                 </>
               )}
             </>
@@ -357,15 +389,11 @@ export function ServerForm({ onClose }: Props) {
                     onChange={(e) => setProxy({ username: e.target.value })}
                   />
                 </div>
-                <div>
-                  <div className="label">密码（可选）</div>
-                  <input
-                    className="input"
-                    type="password"
-                    value={proxy.password || ""}
-                    onChange={(e) => setProxy({ password: e.target.value })}
-                  />
-                </div>
+                <PasswordInput
+                  label="密码（可选）"
+                  value={proxy.password || ""}
+                  onChange={(v) => setProxy({ password: v })}
+                />
               </div>
               <div
                 style={{
@@ -381,6 +409,16 @@ export function ServerForm({ onClose }: Props) {
           )}
         </div>
         <div className="modal-footer">
+          <button
+            type="button"
+            className="btn"
+            style={{ marginRight: "auto" }}
+            onClick={handleTest}
+            disabled={testing || !canTest}
+            title={canTest ? "使用当前填写的主机、认证与代理信息测试连通性" : "请先填写主机和用户名"}
+          >
+            {testing ? "测试中…" : "测试连接"}
+          </button>
           <button type="button" className="btn" onClick={onClose}>
             取消
           </button>
@@ -397,6 +435,87 @@ function CloseIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ── 带明文切换（眼睛图标）的密码输入框 ──
+function PasswordInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div className="label">{label}</div>
+      <div style={{ position: "relative" }}>
+        <input
+          className="input"
+          type={show ? "text" : "password"}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ paddingRight: 30 }}
+        />
+        <button
+          type="button"
+          onClick={() => setShow((s) => !s)}
+          title={show ? "隐藏密码" : "显示明文"}
+          aria-label={show ? "隐藏密码" : "显示明文"}
+          style={{
+            position: "absolute",
+            right: 4,
+            top: "50%",
+            transform: "translateY(-50%)",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--fg-muted)",
+            padding: 4,
+            display: "flex",
+            borderRadius: 4,
+          }}
+        >
+          {show ? <EyeOffIcon /> : <EyeIcon />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M1 8s2.3-4.5 7-4.5S15 8 15 8s-2.3 4.5-7 4.5S1 8 1 8z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <circle cx="8" cy="8" r="2.1" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M1 8s2.3-4.5 7-4.5c1.2 0 2.3.3 3.2.8M14.2 6.6C14.7 7.2 15 8 15 8s-2.3 4.5-7 4.5c-1 0-1.9-.2-2.7-.6"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M2.5 2.5l11 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <circle cx="8" cy="8" r="2.1" stroke="currentColor" strokeWidth="1.3" />
     </svg>
   );
 }

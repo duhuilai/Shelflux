@@ -6,20 +6,20 @@
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  background: var(--bg-base);
+  background: transparent;
 }
 
 .sftp-toolbar {
-  height: 38px;
+  height: 40px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 12px;
+  padding: 0 14px;
   min-width: 0;
   overflow: hidden;
   background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-light);
 }
 
 .sftp-toolbar .toolbar-spacer {
@@ -270,6 +270,12 @@
   font-size: 10px;
 }
 
+/* 末级文件名：加粗 + 蓝色 */
+.sftp-breadcrumb-segment.last {
+  font-weight: 700;
+  color: var(--accent-blue);
+}
+
 .sftp-breadcrumb-input {
   flex: 1;
   background: var(--bg-input);
@@ -287,7 +293,7 @@
   border-color: var(--accent-blue);
 }
 
-/* 文件列表：只允许纵向滚动，横向永不出现滚动条（列宽始终贴合分栏宽度） */
+/* 文件列表容器：整体底色让行有归属感 */
 .sftp-files {
   flex: 1;
   min-width: 0;
@@ -297,6 +303,7 @@
   overflow-x: hidden;
   overflow-y: auto;
   position: relative;
+  background: #ffffff;
 }
 
 /* 彻底隐藏横向滚动条轨道（Tauri/WebKit 偶尔仍会渲染不可用轨道） */
@@ -340,9 +347,16 @@
   display: flex;
   min-width: 0;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease);
+  background: #ffffff;
+  transition: background var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease);
+}
+
+/* 斑马纹：偶数行略暖，增加层次感 */
+.sftp-grid-row:nth-child(even) {
+  background: #FAF8F5;
 }
 
 .sftp-grid-row:hover {
@@ -350,7 +364,26 @@
 }
 
 .sftp-grid-row.selected {
-  background: var(--bg-active);
+  background: var(--accent-blue-soft);
+  border-left: 3px solid var(--accent-blue);
+}
+
+/* 暗色模式下行间距和对比度优化 */
+:root[data-theme="dark"] .sftp-grid-row {
+  background: var(--bg-elevated);
+  border-bottom-color: var(--border-soft);
+}
+
+:root[data-theme="dark"] .sftp-grid-row:nth-child(even) {
+  background: var(--bg-secondary);
+}
+
+:root[data-theme="dark"] .sftp-files {
+  background: var(--bg-elevated);
+}
+
+:root[data-theme="dark"] .sftp-view {
+  background: transparent;
 }
 
 .sftp-grid-row.cut {
@@ -363,7 +396,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  padding: 5px 10px;
+  padding: 6px 12px;
   color: var(--fg-primary);
   overflow: hidden;
 }
@@ -375,7 +408,7 @@
 }
 
 .sftp-grid-head {
-  padding: 6px 10px;
+  padding: 7px 12px;
   font-size: 10.5px;
   font-weight: 600;
   color: var(--fg-muted);
@@ -456,11 +489,17 @@
 
 .sftp-file-icon {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* SVG 图标本身保持 16×16，在 20×20 容器内居中显示，避免边缘裁切 */
+.sftp-file-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .sftp-file-icon.dir {
@@ -473,6 +512,48 @@
 
 .sftp-file-icon.symlink {
   color: var(--accent-yellow);
+}
+
+/* 排序表头 */
+.sftp-grid-head {
+  cursor: default;
+  user-select: none;
+}
+.sftp-grid-head.sorted,
+.sftp-grid-head:hover {
+  cursor: pointer;
+}
+.sort-arrow {
+  display: inline-block;
+  font-size: 9px;
+  margin-left: 3px;
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+  vertical-align: middle;
+  line-height: 1;
+}
+.sftp-grid-head:hover .sort-arrow,
+.sftp-grid-head.sorted .sort-arrow {
+  opacity: 0.5;
+}
+.sftp-grid-head.sorted .sort-arrow {
+  opacity: 1;
+  color: var(--accent-blue);
+}
+.sort-arrow.up {
+  transform: rotate(0deg);
+}
+.sort-arrow.down {
+  transform: rotate(180deg);
+}
+
+/* 类型列 */
+.sftp-grid-cell.filetype {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-size: 12px;
 }
 
 /* 传输队列 */

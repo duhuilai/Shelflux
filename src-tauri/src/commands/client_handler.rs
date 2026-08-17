@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use serde::Serialize;
 use russh::client::{self, Handler, Session};
 use russh::{Channel, ChannelId};
 use russh_keys::key::KeyPair;
@@ -157,6 +158,59 @@ pub async fn connect_session_with_forwarding(
     forwarded_tx: mpsc::UnboundedSender<ForwardedChannel>,
 ) -> Result<client::Handle<ClientHandler>, AppError> {
     connect_session_inner(server, key_pair, Some(forwarded_tx)).await
+}
+
+/// 测试连接结果（返回给前端）
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TestConnectionResult {
+    /// 是否连接并认证成功
+    pub success: bool,
+    /// 可读结果说明
+    pub message: String,
+    /// SSH/SFTP 成功时附带的主机指纹（SHA256:base64），便于用户核对
+    pub fingerprint: Option<String>,
+}
+
+/// 测试服务器连通性。
+///
+/// - SSH / SFTP：建立连接、完成主机密钥校验与认证，等价于一次真实连接（不写入连接池，
+///   结束后立即关闭该测试连接）。主机指纹（如首次信任）仍会按 TOFU 策略记入 known_hosts，
+///   与正式连接行为一致。
+/// - Telnet / Rlogin：仅测试底层 TCP 可达（含代理），因这两种协议无认证阶段。
+#[tauri::command]
+pub async fn test_connection(server: ServerConfig) -> Result<TestConnectionResult, AppError> {
+    match server.protocol.as_str() {
+        "telnet" | "rlogin" => {
+            // 仅验证 TCP 可达（含代理）
+            let _stream = proxy::connect_tcp(&server).await?;
+            Ok(TestConnectionResult {
+                success: true,
+                message: format!("TCP 已连通 {}:{}", server.host, server.effective_port()),
+                fingerprint: None,
+            })
+        }
+        "ssh" | "sftp" | _ => {
+            // 解析私钥（如有）
+            let key_pair = if !server.private_key.is_empty() {
+                Some(Arc::new(parse_private_key(&server.private_key, &server.passphrase)?))
+            } else {
+                None
+            };
+            // 完整连接 + 认证
+            let handle = connect_session(&server, key_pair).await?;
+            // 读取本次校验到的主机指纹（TOFU 已写入 known_hosts）
+            let fingerprint =
+                known_hosts::lookup(&server.host, server.effective_port()).map(|e| e.fingerprint);
+            // 关闭测试连接（不进入连接池）
+            drop(handle);
+            Ok(TestConnectionResult {
+                success: true,
+                message: format!("已连接并认证成功 {}:{}", server.host, server.effective_port()),
+                fingerprint,
+            })
+        }
+    }
 }
 
 /// 从连接池获取或新建 SSH 连接句柄。

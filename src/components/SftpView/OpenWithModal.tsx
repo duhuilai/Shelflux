@@ -58,14 +58,20 @@ export function OpenWithModal({
   const handleBrowse = useCallback(async () => {
     try {
       const isMac = navigator.platform?.startsWith("Mac") || false;
+      // macOS 的 .app 是 bundle（目录），NSOpenPanel 扩展名过滤器对其无效，
+      // 必须去掉 filters 否则所有 .app 都无法选中。
       const picked = await open({
         title: "选择程序",
-        filters: [
-          {
-            name: "可执行程序",
-            extensions: isMac ? ["app"] : ["exe"],
-          },
-        ],
+        ...(isMac
+          ? {}
+          : {
+              filters: [
+                {
+                  name: "可执行程序",
+                  extensions: ["exe"],
+                },
+              ],
+            }),
       });
       if (picked && typeof picked === "string") {
         const base = picked.split(/[\\/]/).pop() || picked;

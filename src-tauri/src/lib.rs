@@ -37,6 +37,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::client_handler::test_connection,
             commands::ssh::ssh_shell_connect,
             commands::ssh::ssh_shell_write,
             commands::ssh::ssh_shell_resize,

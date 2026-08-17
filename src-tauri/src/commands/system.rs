@@ -125,7 +125,17 @@ pub async fn open_with_program(
                 )));
             }
         }
-        #[cfg(not(target_os = "windows"))]
+        #[cfg(target_os = "macos")]
+        {
+            // macOS：.app 是程序包，需用 `open -a <app> <file>` 启动
+            std::process::Command::new("open")
+                .arg("-a")
+                .arg(&program_path)
+                .arg(&file_path)
+                .spawn()
+                .map_err(|e| AppError::Other(format!("打开文件失败: {e}")))?;
+        }
+        #[cfg(target_os = "linux")]
         {
             std::process::Command::new(&program_path)
                 .arg(&file_path)
@@ -258,7 +268,12 @@ pub async fn get_open_with_apps(
         }
         Ok(apps)
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        let _ = extension;
+        Ok(read_mac_apps())
+    }
+    #[cfg(target_os = "linux")]
     {
         let _ = extension;
         Ok(vec![])
@@ -324,6 +339,51 @@ fn read_installed_apps() -> Vec<OpenWithApp> {
         let name = resolve_app_display_name(&app_key, &exe_path, &subkey_name);
 
         result.push(OpenWithApp { name, path: exe_path });
+    }
+
+    result.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    result
+}
+
+/// macOS：扫描常见 Applications 目录，收集 .app 程序包
+#[cfg(target_os = "macos")]
+fn read_mac_apps() -> Vec<OpenWithApp> {
+    use std::collections::HashSet;
+    let mut result: Vec<OpenWithApp> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    let home = std::env::var("HOME").unwrap_or_default();
+    let roots: Vec<String> = vec![
+        "/System/Applications".to_string(),
+        "/Applications".to_string(),
+        if home.is_empty() {
+            String::new()
+        } else {
+            format!("{home}/Applications")
+        },
+    ];
+
+    for root in roots.iter().filter(|r| !r.is_empty()) {
+        let Ok(entries) = std::fs::read_dir(root) else {
+            continue;
+        };
+        for entry in entries.filter_map(|e| e.ok()) {
+            let p = entry.path();
+            // .app 是目录形式的程序包
+            if p.extension().and_then(|s| s.to_str()) != Some("app") {
+                continue;
+            }
+            let Some(name) = p.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            let canon = p.to_string_lossy().to_lowercase();
+            if seen.insert(canon) {
+                result.push(OpenWithApp {
+                    name: name.to_string(),
+                    path: p.to_string_lossy().to_string(),
+                });
+            }
+        }
     }
 
     result.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));

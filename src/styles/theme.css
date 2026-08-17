@@ -1,49 +1,59 @@
-/* 主题变量 - Vercel 浅色风格 */
+/* 主题变量 - duNote 浅灰蓝通透风格 */
 
 :root {
   color-scheme: light;
 
-  /* 背景 */
-  --bg-base: #ffffff;
+  /* 背景 —— 浅灰蓝底（非纯白），通透感 */
+  --bg-base: #f4f6f9;
   --bg-elevated: #ffffff;
-  --bg-secondary: #fafafa;
-  --bg-tertiary: #f5f5f5;
-  --bg-input: #fafafa;
-  --bg-hover: rgba(0, 0, 0, 0.04);
-  --bg-active: rgba(0, 0, 0, 0.06);
-  --bg-selected: rgba(0, 0, 0, 0.08);
+  --bg-secondary: #eef1f5;
+  --bg-tertiary: #e8ecf1;
+  --bg-input: #ffffff;
+  --bg-overlay: #f8fafc;
+  --bg-hover: rgba(59, 130, 246, 0.07);
+  --bg-active: rgba(59, 130, 246, 0.11);
+  --bg-selected: rgba(59, 130, 246, 0.13);
 
   /* 文字 */
-  --fg-primary: #171717;
-  --fg-secondary: #4d4d4d;
-  --fg-muted: #808080;
-  --fg-disabled: #a0a0a0;
+  --fg-primary: #1a1d23;
+  --fg-secondary: #4a505c;
+  --fg-muted: #8890a0;
+  --fg-disabled: #b0b7c4;
 
   /* 边框 */
-  --border-soft: rgba(0, 0, 0, 0.06);
-  --border-default: rgba(0, 0, 0, 0.12);
-  --border-light: rgb(235, 235, 235);
+  --border-soft: rgba(15, 23, 42, 0.06);
+  --border-default: rgba(15, 23, 42, 0.12);
+  --border-light: #e2e6ef;
 
-  /* 主色 - Vercel 蓝 */
-  --accent-blue: #0a72ef;
-  --accent-blue-soft: rgba(10, 114, 239, 0.08);
+  /* 主色 —— 活力蓝（duNote 同款调性） */
+  --accent-blue: #3b82f6;
+  --accent-blue-soft: rgba(59, 130, 246, 0.12);
+  /* 协议 / 分类强调色 */
+  --accent-violet: #8b5cf6;
+  --accent-yellow: #f59e0b;
+  --accent-cyan: #06b6d4;
+  --accent-green: #22c55e;
 
   /* 状态 */
-  --color-success: #0a9b4f;
+  --color-success: #16a34a;
   --color-warn: #d97706;
   --color-error: #dc2626;
-  --color-info: #0a72ef;
+  --color-info: #3b82f6;
 
-  /* 阴影 - Shadow-as-border */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  /* 渐变（按钮 / 进度 / 标签底色） */
+  --gradient-primary: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  --gradient-primary-soft: linear-gradient(135deg, rgba(59, 130, 246, 0.14) 0%, rgba(139, 92, 246, 0.14) 100%);
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 8px 28px rgba(15, 23, 42, 0.12);
 
   /* 圆角 */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
 
   /* 间距 */
   --space-1: 4px;
@@ -65,31 +75,53 @@
   --tabbar-height: 40px;
 }
 
-/* 暗色主题保留（可切换） */
+/* 暗色主题 —— 柔和深灰层次感（参考 VS Code / Discord 暗色） */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg-base: #0a0a0a;
-  --bg-elevated: #111111;
-  --bg-secondary: #171717;
-  --bg-tertiary: #1c1c1c;
-  --bg-input: #171717;
+
+  /* 背景 —— 多层深灰，避免纯黑 */
+  --bg-base: #16181d;
+  --bg-elevated: #1c1f26;
+  --bg-secondary: #22262e;
+  --bg-tertiary: #282d38;
+  --bg-input: #22262e;
+  --bg-overlay: #1c1f26;
   --bg-hover: rgba(255, 255, 255, 0.06);
-  --bg-active: rgba(255, 255, 255, 0.1);
-  --bg-selected: rgba(255, 255, 255, 0.12);
-  --fg-primary: #ededed;
-  --fg-secondary: #a1a1a1;
-  --fg-muted: #737373;
-  --fg-disabled: #525252;
-  --border-soft: rgba(255, 255, 255, 0.08);
-  --border-default: rgba(255, 255, 255, 0.16);
-  --border-light: rgb(40, 40, 40);
-  --accent-blue: #3b82f6;
-  --accent-blue-soft: rgba(59, 130, 246, 0.15);
-  --color-success: #22c55e;
-  --color-warn: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --bg-active: rgba(255, 255, 255, 0.10);
+  --bg-selected: rgba(59, 130, 246, 0.15);
+
+  /* 文字 —— 柔和白，降低纯白刺眼 */
+  --fg-primary: #e4e6eb;
+  --fg-secondary: #9ca3af;
+  --fg-muted: #6b7280;
+  --fg-disabled: #4b5563;
+
+  /* 边框 —— 微妙分隔 */
+  --border-soft: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.11);
+  --border-light: rgba(255, 255, 255, 0.08);
+
+  /* 主色 —— 活力蓝 */
+  --accent-blue: #60a5fa;
+  --accent-blue-soft: rgba(96, 165, 250, 0.15);
+  /* 协议 / 分类强调色（暗色下提亮） */
+  --accent-violet: #a78bfa;
+  --accent-yellow: #fbbf24;
+  --accent-cyan: #22d3ee;
+  --accent-green: #34d399;
+
+  /* 状态 */
+  --color-success: #34d399;
+  --color-warn: #fbbf24;
+  --color-error: #f87171;
+  --color-info: #60a5fa;
+
+  /* 渐变 */
+  --gradient-primary: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  --gradient-primary-soft: linear-gradient(135deg, rgba(59, 130, 246, 0.16) 0%, rgba(139, 92, 246, 0.16) 100%);
+
+  /* 阴影 —— 暗色下用更深的阴影增加深度 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.6);
 }

@@ -1,9 +1,9 @@
-/* 侧边栏样式 - Vercel 风格 */
+/* 侧边栏样式 - duNote 浅灰蓝通透风格 */
 .sidebar {
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  background: var(--bg-base);
-  border-right: 1px solid var(--border-light);
+  background: var(--bg-secondary, #f0f2f5);
+  border-right: 1px solid var(--border-light, #e5e7eb);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -19,17 +19,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
-  background: var(--bg-secondary);
+  padding: 8px 12px;
+  background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   color: var(--fg-muted);
   font-size: 13px;
-  transition: border-color 0.15s ease;
+  transition: all 0.18s ease;
 }
 
-.search-box:hover {
-  border-color: var(--fg-muted);
+.search-box:hover,
+.search-box:focus-within {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px var(--accent-blue-soft);
 }
 
 .search-box input {
@@ -51,22 +53,22 @@
   justify-content: center;
   gap: 6px;
   width: 100%;
-  padding: 7px 12px;
+  padding: 8px 14px;
   margin-top: 8px;
-  background: var(--bg-base);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   color: var(--fg-secondary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
 }
 
 .add-group-btn:hover {
-  background: var(--bg-secondary);
-  border-color: var(--fg-muted);
-  color: var(--fg-primary);
+  background: var(--accent-blue-soft);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--accent-blue);
 }
 
 .sidebar-content {
@@ -179,20 +181,20 @@
 .footer-btn {
   flex: 1;
   padding: 7px 12px;
-  background: var(--bg-base);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   color: var(--fg-muted);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
 }
 
 .footer-btn:hover {
-  background: var(--bg-secondary);
-  border-color: var(--fg-muted);
-  color: var(--fg-primary);
+  background: var(--accent-blue-soft);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--accent-blue);
 }
 
 .sidebar-footer .settings-btn {
@@ -215,9 +217,11 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 8px 5px 4px;
+  padding: 8px 10px 8px 6px;
+  min-height: 36px;
   cursor: pointer;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
+  position: relative;
   transition: background var(--duration-fast) var(--ease);
   font-size: 12.5px;
   color: var(--fg-primary);
@@ -239,8 +243,24 @@
 }
 
 .tree-row.active {
-  background: var(--bg-selected);
+  background: var(--accent-blue-soft);
   color: var(--fg-primary);
+  border-left: 3px solid var(--accent-blue);
+  padding-left: calc(4px - 3px); /* 补偿左边框宽度，避免文字偏移 */
+}
+
+/* 暗色模式树节点微调 */
+:root[data-theme="dark"] .tree-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:root[data-theme="dark"] .tree-row.active {
+  background: rgba(59, 130, 246, 0.14);
+}
+
+/* 激活项的图标也用强调色 */
+.tree-row.active .tree-icon {
+  color: var(--accent-blue);
 }
 
 .tree-chevron {
@@ -305,13 +325,17 @@
 }
 
 .tree-actions {
-  display: none;
+  display: flex;
   gap: 2px;
   flex-shrink: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease);
 }
 
 .tree-row:hover .tree-actions {
-  display: flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .tree-action-btn {
@@ -327,12 +351,47 @@
 
 .tree-action-btn:hover {
   background: var(--bg-hover);
-  color: var(--fg-primary);
+  color: var(--accent-blue);
 }
 
 .tree-action-btn.danger:hover {
   background: rgba(220, 38, 38, 0.1);
   color: var(--color-error);
+}
+
+/* 拖动握把（服务器行左侧，hover 出现，提示可拖拽排序） */
+.tree-drag-handle {
+  width: 14px;
+  height: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  opacity: 0;
+  cursor: grab;
+  border-radius: 4px;
+  transition: opacity var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
+}
+
+.tree-row:hover .tree-drag-handle {
+  opacity: 0.55;
+}
+
+.tree-drag-handle:hover {
+  opacity: 1 !important;
+  color: var(--accent-blue);
+  background: var(--bg-hover);
+}
+
+.tree-drag-handle:active {
+  cursor: grabbing;
+}
+
+.tree-row.dragging .tree-drag-handle,
+.tree-row.dragging .tree-icon,
+.tree-row.dragging .tree-label {
+  opacity: 0.4;
 }
 
 .tree-children {}

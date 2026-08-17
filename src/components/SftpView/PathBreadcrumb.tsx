@@ -66,7 +66,7 @@ export function PathBreadcrumb({ path, editable, onPathChange, onEditingChange }
         return (
           <span key={i} style={{ display: "inline-flex", alignItems: "center" }}>
             <span
-              className="sftp-breadcrumb-segment"
+              className={`sftp-breadcrumb-segment${isLast ? " last" : ""}`}
               onClick={() => handleSegmentClick(seg.full)}
               title={seg.full}
             >
