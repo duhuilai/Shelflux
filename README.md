@@ -7,23 +7,29 @@
 ## 软件截图
 
 <div align="center">
-  <img src="screenshots/main-window.png" width="800" alt="主界面"><br>
-  <em>主界面 — 服务器分组列表 + SFTP 双栏文件管理器</em>
+  <img src="screenshots/01-welcome.png" width="800" alt="主界面 - 欢迎页"><br>
+  <em>主界面 — 服务器分组管理，支持拖动排序与多协议连接</em>
 </div>
 
-<div align="center">
-  <img src="screenshots/sftp-panel.png" width="800" alt="SFTP 双栏"><br>
-  <em>SFTP 双栏 — 本地/远端并排，支持拖拽传输、右键菜单、批量操作</em>
-</div>
+<br>
 
 <div align="center">
-  <img src="screenshots/server-list.png" width="800" alt="服务器列表"><br>
-  <em>服务器列表 — 分组管理、拖动排序、协议标记</em>
+  <img src="screenshots/02-sftp-dual-panel.png" width="800" alt="SFTP 双栏文件管理器"><br>
+  <em>SFTP 双栏文件管理器 — 本地/远端并排，支持拖拽传输、面包屑导航、批量操作</em>
 </div>
 
+<br>
+
 <div align="center">
-  <img src="screenshots/ssh-terminal.png" width="800" alt="SSH 终端"><br>
-  <em>SSH 终端 — xterm.js 渲染、复制/粘贴、文本搜索、字体自定义</em>
+  <img src="screenshots/03-server-picker.png" width="800" alt="服务器选择器"><br>
+  <em>服务器选择器 — 一键选择 Shell 终端或 SFTP 文件管理两种连接方式</em>
+</div>
+
+<br>
+
+<div align="center">
+  <img src="screenshots/04-ssh-terminal.png" width="800" alt="SSH 终端"><br>
+  <em>SSH 终端 — xterm.js 渲染，真实连接 CentOS 7 服务器，支持多页签、文本搜索、复制粘贴</em>
 </div>
 
 ## 特性
