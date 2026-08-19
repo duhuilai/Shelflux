@@ -109,7 +109,13 @@ export function FilePanel({
       setError(null);
       setSelected(new Set());
       try {
-        const result = await loadEntries(path);
+        // 前端 45s 超时兜底：后端 sftp_list 已有 30s 超时，这里多留余量
+        const result = await Promise.race([
+          loadEntries(path),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('加载超时（服务器无响应）')), 45000)
+          ),
+        ]);
         setEntries(result);
       } catch (e: any) {
         setError(e.toString());

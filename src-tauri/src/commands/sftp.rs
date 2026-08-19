@@ -171,6 +171,15 @@ async fn evict_ssh_handle(app: &AppHandle, server: &ServerConfig) {
     pool.remove(&server.id);
 }
 
+/// 从 SFTP 会话池中剔除指定 server 的会话（超时/错误后调用，强制下次重建）
+async fn evict_sftp_session(app: &AppHandle, server: &ServerConfig) {
+    let state = app.state::<AppState>();
+    let mut sessions = state.sftp_sessions.lock().await;
+    if sessions.remove(&server.id).is_some() {
+        eprintln!("[sftp] evicted stale session for {}", server.id);
+    }
+}
+
 fn file_name_of(path: &str) -> String {
     Path::new(path)
         .file_name()
@@ -185,10 +194,25 @@ pub async fn sftp_list(
     path: String,
 ) -> Result<Vec<FileEntry>, AppError> {
     let sftp = get_sftp(&app, &server).await?;
-    let read_dir = sftp.lock().await
-        .read_dir(path.as_str())
-        .await
-        .map_err(|e| AppError::Sftp(format!("读取目录失败: {e}")))?;
+
+    // read_dir 加 30s 超时：大目录/慢文件系统/网络瞬断时不至于永久挂起
+    let read_dir = match tokio::time::timeout(
+        Duration::from_secs(30),
+        sftp.lock().await.read_dir(path.as_str()),
+    )
+    .await
+    {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => return Err(AppError::Sftp(format!("读取目录失败: {e}"))),
+        Err(_) => {
+            // 超时后剔除可能已失效的会话，下次调用会重建连接
+            evict_sftp_session(&app, &server).await;
+            return Err(AppError::Sftp(format!(
+                "读取目录超时 ({}，30s 无响应)",
+                path
+            )));
+        }
+    };
 
     let mut result: Vec<FileEntry> = read_dir
         .map(|entry| {
@@ -550,7 +574,12 @@ pub async fn sftp_download(
     );
 
     loop {
-        let n = remote_file.read(&mut buf).await.map_err(AppError::Io)?;
+        // 每次 SFTP 读加 30s 超时，避免远端停响应后永久挂起（同时阻塞其他操作）
+        let n = match tokio::time::timeout(Duration::from_secs(30), remote_file.read(&mut buf)).await {
+            Ok(Ok(n)) => n,
+            Ok(Err(e)) => return Err(AppError::Io(e)),
+            Err(_) => return Err(AppError::Sftp(format!("下载读取超时: {} (30s 无数据)", remote))),
+        };
         if n == 0 {
             break;
         }
@@ -632,10 +661,12 @@ pub async fn sftp_upload(
         if n == 0 {
             break;
         }
-        remote_file
-            .write_all(&buf[..n])
-            .await
-            .map_err(|e| AppError::Sftp(format!("写入失败: {e}")))?;
+        // 每次 SFTP 写加 30s 超时，避免远端停响应后永久挂起
+        match tokio::time::timeout(Duration::from_secs(30), remote_file.write_all(&buf[..n])).await {
+            Ok(Ok(())) => {},
+            Ok(Err(e)) => return Err(AppError::Sftp(format!("写入失败: {e}"))),
+            Err(_) => return Err(AppError::Sftp(format!("上传写入超时: {} (30s 无响应)", remote))),
+        };
         done += n as u64;
         let elapsed = started.elapsed().as_secs().max(1);
         emit_progress(
