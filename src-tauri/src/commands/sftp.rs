@@ -534,14 +534,37 @@ pub async fn sftp_download(
 ) -> Result<(), AppError> {
     let sftp = get_sftp(&app, &server).await?;
 
-    let total = sftp.lock().await
+    // 检查远端路径是否为目录
+    let is_dir = sftp.lock().await
         .metadata(remote.as_str())
+        .await
+        .map(|m| m.is_dir())
+        .unwrap_or(false);
+
+    if is_dir {
+        sftp_download_dir(&app, &sftp, &remote, &local, &task_id).await?;
+    } else {
+        sftp_download_file(&app, &sftp, &remote, &local, &task_id).await?;
+    }
+    Ok(())
+}
+
+/// 下载单个远端文件到本地
+async fn sftp_download_file(
+    app: &AppHandle,
+    sftp: &Arc<Mutex<SftpSession>>,
+    remote: &str,
+    local: &str,
+    task_id: &str,
+) -> Result<(), AppError> {
+    let total = sftp.lock().await
+        .metadata(remote)
         .await
         .ok()
         .and_then(|m| m.size)
         .unwrap_or(0);
 
-    let local_path = std::path::Path::new(&local);
+    let local_path = std::path::Path::new(local);
     if let Some(parent) = local_path.parent() {
         tokio::fs::create_dir_all(parent)
             .await
@@ -549,10 +572,10 @@ pub async fn sftp_download(
     }
 
     let mut remote_file = sftp.lock().await
-        .open(remote.as_str())
+        .open(remote)
         .await
         .map_err(|e| AppError::Sftp(format!("打开远端文件失败: {e}")))?;
-    let mut local_file = tokio::fs::File::create(local.as_str())
+    let mut local_file = tokio::fs::File::create(local)
         .await
         .map_err(AppError::Io)?;
 
@@ -561,61 +584,87 @@ pub async fn sftp_download(
     let started = Instant::now();
 
     emit_progress(
-        &app,
-        &task_id,
+        app, task_id,
         &TransferProgress {
-            task_id: task_id.clone(),
-            transferred: 0,
-            total,
-            speed: 0,
+            task_id: task_id.to_string(),
+            transferred: 0, total, speed: 0,
             status: "running".into(),
             message: Some(format!("下载 {}", remote)),
         },
     );
 
     loop {
-        // 每次 SFTP 读加 30s 超时，避免远端停响应后永久挂起（同时阻塞其他操作）
         let n = match tokio::time::timeout(Duration::from_secs(30), remote_file.read(&mut buf)).await {
             Ok(Ok(n)) => n,
             Ok(Err(e)) => return Err(AppError::Io(e)),
             Err(_) => return Err(AppError::Sftp(format!("下载读取超时: {} (30s 无数据)", remote))),
         };
-        if n == 0 {
-            break;
-        }
+        if n == 0 { break; }
         local_file.write_all(&buf[..n]).await.map_err(AppError::Io)?;
         done += n as u64;
         let elapsed = started.elapsed().as_secs().max(1);
-        emit_progress(
-            &app,
-            &task_id,
-            &TransferProgress {
-                task_id: task_id.clone(),
-                transferred: done,
-                total,
-                speed: done / elapsed,
-                status: "running".into(),
-                message: None,
-            },
-        );
+        emit_progress(app, task_id, &TransferProgress {
+            task_id: task_id.to_string(), transferred: done, total, speed: done / elapsed,
+            status: "running".into(), message: None,
+        });
     }
     local_file.flush().await.map_err(AppError::Io)?;
 
-    emit_progress(
-        &app,
-        &task_id,
-        &TransferProgress {
-            task_id: task_id.clone(),
-            transferred: done,
-            total: done.max(total),
-            speed: 0,
-            status: "done".into(),
-            message: Some(format!("保存到 {}", local)),
-        },
-    );
-    // 下载完成 → 本地目录内容变化，提示本地面板刷新列表
-    if let Some(parent) = std::path::Path::new(&local).parent() {
-        emit_dir_changed(&app, "local", &parent.to_string_lossy());
+    emit_progress(app, task_id, &TransferProgress {
+        task_id: task_id.to_string(), transferred: done, total: done.max(total), speed: 0,
+        status: "done".into(), message: Some(format!("保存到 {}", local)),
+    });
+    if let Some(parent) = std::path::Path::new(local).parent() {
+        emit_dir_changed(app, "local", &parent.to_string_lossy());
+    }
+    Ok(())
+}
+
+/// 递归下载远端目录到本地
+async fn sftp_download_dir(
+    app: &AppHandle,
+    sftp: &Arc<Mutex<SftpSession>>,
+    remote_dir: &str,
+    local_dir: &str,
+    task_id: &str,
+) -> Result<(), AppError> {
+    tokio::fs::create_dir_all(local_dir).await.map_err(AppError::Io)?;
+
+    emit_progress(app, task_id, &TransferProgress {
+        task_id: task_id.to_string(), transferred: 0, total: 0, speed: 0,
+        status: "running".into(), message: Some(format!("下载目录 {}", remote_dir)),
+    });
+
+    let entries = sftp.lock().await
+        .read_dir(remote_dir)
+        .await
+        .map_err(|e| AppError::Sftp(format!("读取远端目录失败: {e}")))?;
+
+    for entry in entries {
+        let name = entry.file_name();
+        if name == "." || name == ".." { continue; }
+        let remote_path = if remote_dir.ends_with('/') {
+            format!("{}{}", remote_dir, name)
+        } else {
+            format!("{}/{}", remote_dir, name)
+        };
+        let local_path = std::path::Path::new(local_dir).join(&name)
+            .to_string_lossy().to_string();
+
+        let ft = entry.file_type();
+        if ft.is_dir() {
+            Box::pin(sftp_download_dir(app, sftp, &remote_path, &local_path, task_id)).await?;
+        } else {
+            sftp_download_file(app, sftp, &remote_path, &local_path, task_id).await?;
+        }
+    }
+
+    emit_progress(app, task_id, &TransferProgress {
+        task_id: task_id.to_string(), transferred: 0, total: 0, speed: 0,
+        status: "done".into(), message: Some(format!("目录已下载 {}", local_dir)),
+    });
+    if let Some(parent) = std::path::Path::new(local_dir).parent() {
+        emit_dir_changed(app, "local", &parent.to_string_lossy());
     }
     Ok(())
 }
@@ -628,14 +677,36 @@ pub async fn sftp_upload(
     remote: String,
     task_id: String,
 ) -> Result<(), AppError> {
-    let mut local_file = tokio::fs::File::open(local.as_str())
+    // 检查本地路径是否为目录
+    let local_meta = tokio::fs::metadata(local.as_str())
+        .await
+        .map_err(AppError::Io)?;
+
+    let sftp = get_sftp(&app, &server).await?;
+
+    if local_meta.is_dir() {
+        sftp_upload_dir(&app, &sftp, &local, &remote, &task_id).await?;
+    } else {
+        sftp_upload_file(&app, &sftp, &local, &remote, &task_id).await?;
+    }
+    Ok(())
+}
+
+/// 上传单个本地文件到远端
+async fn sftp_upload_file(
+    app: &AppHandle,
+    sftp: &Arc<Mutex<SftpSession>>,
+    local: &str,
+    remote: &str,
+    task_id: &str,
+) -> Result<(), AppError> {
+    let mut local_file = tokio::fs::File::open(local)
         .await
         .map_err(AppError::Io)?;
     let total = local_file.metadata().await.map_err(AppError::Io)?.len();
 
-    let sftp = get_sftp(&app, &server).await?;
     let mut remote_file = sftp.lock().await
-        .create(remote.as_str())
+        .create(remote)
         .await
         .map_err(|e| AppError::Sftp(format!("创建远端文件失败: {e}")))?;
 
@@ -643,25 +714,14 @@ pub async fn sftp_upload(
     let mut done: u64 = 0;
     let started = Instant::now();
 
-    emit_progress(
-        &app,
-        &task_id,
-        &TransferProgress {
-            task_id: task_id.clone(),
-            transferred: 0,
-            total,
-            speed: 0,
-            status: "running".into(),
-            message: Some(format!("上传 {}", remote)),
-        },
-    );
+    emit_progress(app, task_id, &TransferProgress {
+        task_id: task_id.to_string(), transferred: 0, total, speed: 0,
+        status: "running".into(), message: Some(format!("上传 {}", remote)),
+    });
 
     loop {
         let n = local_file.read(&mut buf).await.map_err(AppError::Io)?;
-        if n == 0 {
-            break;
-        }
-        // 每次 SFTP 写加 30s 超时，避免远端停响应后永久挂起
+        if n == 0 { break; }
         match tokio::time::timeout(Duration::from_secs(30), remote_file.write_all(&buf[..n])).await {
             Ok(Ok(())) => {},
             Ok(Err(e)) => return Err(AppError::Sftp(format!("写入失败: {e}"))),
@@ -669,36 +729,66 @@ pub async fn sftp_upload(
         };
         done += n as u64;
         let elapsed = started.elapsed().as_secs().max(1);
-        emit_progress(
-            &app,
-            &task_id,
-            &TransferProgress {
-                task_id: task_id.clone(),
-                transferred: done,
-                total,
-                speed: done / elapsed,
-                status: "running".into(),
-                message: None,
-            },
-        );
+        emit_progress(app, task_id, &TransferProgress {
+            task_id: task_id.to_string(), transferred: done, total, speed: done / elapsed,
+            status: "running".into(), message: None,
+        });
     }
     remote_file.close().await.map_err(AppError::Io)?;
 
-    emit_progress(
-        &app,
-        &task_id,
-        &TransferProgress {
-            task_id: task_id.clone(),
-            transferred: done,
-            total,
-            speed: 0,
-            status: "done".into(),
-            message: Some(format!("上传到 {}", remote)),
-        },
-    );
-    // 上传完成 → 远端目录内容变化，提示远端面板刷新列表
-    if let Some(parent) = std::path::Path::new(&remote).parent() {
-        emit_dir_changed(&app, "remote", &parent.to_string_lossy());
+    emit_progress(app, task_id, &TransferProgress {
+        task_id: task_id.to_string(), transferred: done, total, speed: 0,
+        status: "done".into(), message: Some(format!("上传到 {}", remote)),
+    });
+    if let Some(parent) = std::path::Path::new(remote).parent() {
+        emit_dir_changed(app, "remote", &parent.to_string_lossy());
+    }
+    Ok(())
+}
+
+/// 递归上传本地目录到远端
+async fn sftp_upload_dir(
+    app: &AppHandle,
+    sftp: &Arc<Mutex<SftpSession>>,
+    local_dir: &str,
+    remote_dir: &str,
+    task_id: &str,
+) -> Result<(), AppError> {
+    // 创建远端目录（已存在则忽略）
+    let _ = sftp.lock().await.create_dir(remote_dir).await;
+
+    emit_progress(app, task_id, &TransferProgress {
+        task_id: task_id.to_string(), transferred: 0, total: 0, speed: 0,
+        status: "running".into(), message: Some(format!("上传目录 {}", local_dir)),
+    });
+
+    let mut entries = tokio::fs::read_dir(local_dir)
+        .await
+        .map_err(AppError::Io)?;
+
+    while let Some(entry) = entries.next_entry().await.map_err(AppError::Io)? {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let local_path = entry.path().to_string_lossy().to_string();
+        let remote_path = if remote_dir.ends_with('/') {
+            format!("{}{}", remote_dir, name)
+        } else {
+            format!("{}/{}", remote_dir, name)
+        };
+
+        let file_type = entry.file_type().await.map_err(AppError::Io)?;
+        if file_type.is_dir() {
+            Box::pin(sftp_upload_dir(app, sftp, &local_path, &remote_path, task_id)).await?;
+        } else {
+            sftp_upload_file(app, sftp, &local_path, &remote_path, task_id).await?;
+        }
+    }
+
+    emit_progress(app, task_id, &TransferProgress {
+        task_id: task_id.to_string(), transferred: 0, total: 0, speed: 0,
+        status: "done".into(), message: Some(format!("目录已上传 {}", remote_dir)),
+    });
+    if let Some(parent) = std::path::Path::new(remote_dir).parent() {
+        emit_dir_changed(app, "remote", &parent.to_string_lossy());
     }
     Ok(())
 }

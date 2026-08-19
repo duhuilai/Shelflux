@@ -326,15 +326,16 @@ export function FilePanel({
   };
 
   // 拖动文件到另一侧
+  // 注意：不能用自定义 MIME 类型（如 "application/x-shelflux-files"），
+  // Windows WebView2 对自定义 MIME 支持不稳定，getData 会返回空串。
+  // 改用 "text/plain" + 前缀标记来可靠传递 payload。
   const handleDragStart = (e: React.DragEvent, item: FileEntry) => {
     // 只在按住时把已选中的项目一起拖动
     const items = selected.has(item.path)
       ? entries.filter((en) => selected.has(en.path))
       : [item];
-    e.dataTransfer.setData(
-      "application/x-shelflux-files",
-      JSON.stringify({ side, items })
-    );
+    const payload = JSON.stringify({ side, items });
+    e.dataTransfer.setData("text/plain", `shelflux:${payload}`);
     e.dataTransfer.effectAllowed = "move";
   };
 
@@ -360,11 +361,11 @@ export function FilePanel({
     dragCounter.current = 0;
     setDragOver(false);
 
-    // 1. Shelflux 内部拖放（跨侧传输）
-    const shelfluxData = e.dataTransfer.getData("application/x-shelflux-files");
-    if (shelfluxData) {
+    // 1. Shelflux 内部拖放（跨侧传输）— 用 text/plain + 前缀标记
+    const raw = e.dataTransfer.getData("text/plain");
+    if (raw && raw.startsWith("shelflux:")) {
       try {
-        const parsed = JSON.parse(shelfluxData);
+        const parsed = JSON.parse(raw.slice("shelflux:".length));
         if (parsed.side !== side && Array.isArray(parsed.items)) {
           // 直接使用 payload 中的完整文件信息，不再去目标面板 entries 查找（跨侧时路径不在本地）
           const items = parsed.items as FileEntry[];
