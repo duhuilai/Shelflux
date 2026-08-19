@@ -1,6 +1,6 @@
 [package]
 name = "shelflux"
-version = "0.0.12"
+version = "0.1.0"
 description = "Shelflux - 跨平台多协议连接管理工具（SSH / SFTP / Telnet / Rlogin）"
 authors = ["Shelflux Team"]
 edition = "2021"
