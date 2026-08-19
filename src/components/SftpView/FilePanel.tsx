@@ -730,7 +730,7 @@ export function FilePanel({
           const picked = await open({
             title: "选择程序",
             ...(isMac
-              ? {}
+              ? { defaultPath: "/Applications" }
               : { filters: [{ name: "可执行程序", extensions: ["exe"] }] }),
           });
           if (picked && typeof picked === "string") {
@@ -748,7 +748,7 @@ export function FilePanel({
           const picked = await open({
             title: "选择程序",
             ...(isMac
-              ? {}
+              ? { defaultPath: "/Applications" }
               : { filters: [{ name: "可执行程序", extensions: ["exe"] }] }),
           });
           if (picked && typeof picked === "string") {

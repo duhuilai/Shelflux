@@ -63,7 +63,7 @@ export function OpenWithModal({
       const picked = await open({
         title: "选择程序",
         ...(isMac
-          ? {}
+          ? { defaultPath: "/Applications" }
           : {
               filters: [
                 {
