@@ -623,6 +623,7 @@ export function FilePanel({
     if (item.kind === "dir") {
       return [
         { label: "打开", icon: <ArrowRightIcon />, onClick: () => onPathChange(item.path) },
+        { label: "传输到对面", icon: <TransferIcon />, onClick: () => onTransfer([item]) },
         { label: "重命名", icon: <EditIcon />, onClick: () => renameItem(item) },
         { divider: true },
         { label: "新建文件夹", icon: <FolderPlusIcon />, onClick: newFolder },
