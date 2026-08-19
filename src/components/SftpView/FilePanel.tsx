@@ -329,11 +329,11 @@ export function FilePanel({
   const handleDragStart = (e: React.DragEvent, item: FileEntry) => {
     // 只在按住时把已选中的项目一起拖动
     const items = selected.has(item.path)
-      ? entries.filter((e) => selected.has(e.path))
+      ? entries.filter((en) => selected.has(en.path))
       : [item];
     e.dataTransfer.setData(
       "application/x-shelflux-files",
-      JSON.stringify({ side, items: items.map((i) => i.path) })
+      JSON.stringify({ side, items })
     );
     e.dataTransfer.effectAllowed = "move";
   };
@@ -355,26 +355,25 @@ export function FilePanel({
       setDragOver(false);
     }
   };
-  const onDrop = (e: React.DragEvent) => {
+  const onDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current = 0;
     setDragOver(false);
-    const data = e.dataTransfer.getData("application/x-shelflux-files");
-    if (!data) return;
-    try {
-      const parsed = JSON.parse(data);
-      if (parsed.side === side) {
-        // 同侧：尝试移动（仅对同协议）
-        // 简化：这里只支持跨侧传输
-        return;
-      }
-      const items = (parsed.items as string[])
-        .map((p) => entries.find((e) => e.path === p))
-        .filter(Boolean) as FileEntry[];
-      if (items.length > 0) onTransfer(items);
-    } catch {
-      /* noop */
+
+    // 1. Shelflux 内部拖放（跨侧传输）
+    const shelfluxData = e.dataTransfer.getData("application/x-shelflux-files");
+    if (shelfluxData) {
+      try {
+        const parsed = JSON.parse(shelfluxData);
+        if (parsed.side !== side && Array.isArray(parsed.items)) {
+          // 直接使用 payload 中的完整文件信息，不再去目标面板 entries 查找（跨侧时路径不在本地）
+          const items = parsed.items as FileEntry[];
+          if (items.length > 0) onTransfer(items);
+        }
+      } catch { /* noop */ }
+      return;
     }
+
   };
 
   // 右键菜单
