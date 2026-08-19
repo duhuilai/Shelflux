@@ -4,6 +4,28 @@
 
 ![Status](https://img.shields.io/badge/status-MVP-7aa2f7) ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-bb9af7) ![License](https://img.shields.io/badge/license-MIT-9ece6a)
 
+## 软件截图
+
+<div align="center">
+  <img src="screenshots/main-window.png" width="800" alt="主界面"><br>
+  <em>主界面 — 服务器分组列表 + SFTP 双栏文件管理器</em>
+</div>
+
+<div align="center">
+  <img src="screenshots/sftp-panel.png" width="800" alt="SFTP 双栏"><br>
+  <em>SFTP 双栏 — 本地/远端并排，支持拖拽传输、右键菜单、批量操作</em>
+</div>
+
+<div align="center">
+  <img src="screenshots/server-list.png" width="800" alt="服务器列表"><br>
+  <em>服务器列表 — 分组管理、拖动排序、协议标记</em>
+</div>
+
+<div align="center">
+  <img src="screenshots/ssh-terminal.png" width="800" alt="SSH 终端"><br>
+  <em>SSH 终端 — xterm.js 渲染、复制/粘贴、文本搜索、字体自定义</em>
+</div>
+
 ## 特性
 
 - **多协议支持** — SSH / SFTP / Telnet / Rlogin
