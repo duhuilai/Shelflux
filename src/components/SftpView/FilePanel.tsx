@@ -718,44 +718,57 @@ export function FilePanel({
       });
     }
 
+    const isMac = navigator.platform?.startsWith("Mac") || false;
+
     submenuItems.push({ divider: true });
     submenuItems.push({
       label: "选择其他程序打开...",
       onClick: async () => {
-        // 浏览选择程序
-        const { open } = await import("@tauri-apps/plugin-dialog");
-        try {
-          const isMac = navigator.platform?.startsWith("Mac") || false;
-          // macOS 的 .app 是 bundle（目录），扩展名过滤器无效且会阻止选中 .app，
-          // 必须去掉 filters；Windows 则限制为 .exe 避免误选普通文件。
-          const picked = await open({
-            title: "选择程序",
-            ...(isMac
-              ? { defaultPath: "/Applications" }
-              : { filters: [{ name: "可执行程序", extensions: ["exe"] }] }),
-          });
-          if (picked && typeof picked === "string") {
-            openWith(picked);
-          }
-        } catch { /* 取消 */ }
+        if (isMac) {
+          // macOS：调用 native dialog，返回 .app 路径
+          try {
+            const picked = await invoke<string>("open_with_dialog", { path: "" });
+            if (picked && picked.trim()) {
+              openWith(picked.trim());
+            }
+          } catch { /* 取消 */ }
+        } else {
+          // Windows：用 tauri dialog
+          const { open } = await import("@tauri-apps/plugin-dialog");
+          try {
+            const picked = await open({
+              title: "选择程序",
+              filters: [{ name: "可执行程序", extensions: ["exe"] }],
+            });
+            if (picked && typeof picked === "string") {
+              openWith(picked);
+            }
+          } catch { /* 取消 */ }
+        }
       },
     });
     submenuItems.push({
       label: "其他程序设为默认...",
       onClick: async () => {
-        const { open } = await import("@tauri-apps/plugin-dialog");
-        try {
-          const isMac = navigator.platform?.startsWith("Mac") || false;
-          const picked = await open({
-            title: "选择程序",
-            ...(isMac
-              ? { defaultPath: "/Applications" }
-              : { filters: [{ name: "可执行程序", extensions: ["exe"] }] }),
-          });
-          if (picked && typeof picked === "string") {
-            setDefaultApp(picked);
-          }
-        } catch { /* 取消 */ }
+        if (isMac) {
+          try {
+            const picked = await invoke<string>("open_with_dialog", { path: "" });
+            if (picked && picked.trim()) {
+              setDefaultApp(picked.trim());
+            }
+          } catch { /* 取消 */ }
+        } else {
+          const { open } = await import("@tauri-apps/plugin-dialog");
+          try {
+            const picked = await open({
+              title: "选择程序",
+              filters: [{ name: "可执行程序", extensions: ["exe"] }],
+            });
+            if (picked && typeof picked === "string") {
+              setDefaultApp(picked);
+            }
+          } catch { /* 取消 */ }
+        }
       },
     });
 

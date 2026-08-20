@@ -10,6 +10,9 @@ use crate::types::{AppInfo, OpenWithApp};
 #[cfg(target_os = "windows")]
 use winreg::RegKey;
 
+#[cfg(target_os = "macos")]
+use plist::{Value, XMLParser};
+
 #[tauri::command]
 pub async fn open_with_default_app(
     _app: AppHandle,
@@ -166,15 +169,16 @@ extern "system" {
     fn SHOpenWithDialog(hwnd_parent: *mut std::ffi::c_void, info: *const OpenAsInfo) -> i32;
 }
 
+#[allow(unused_variables)]
 #[tauri::command]
-pub async fn open_with_dialog(path: String) -> Result<(), AppError> {
-    tauri::async_runtime::spawn_blocking(move || -> Result<(), AppError> {
-        #[cfg(target_os = "windows")]
-        {
+pub async fn open_with_dialog(app: AppHandle, path: String) -> Result<String, AppError> {
+    #[cfg(target_os = "windows")]
+    {
+        tauri::async_runtime::spawn_blocking(move || -> Result<String, AppError> {
+            let _ = app; // keep signature consistent across platforms
             use std::os::windows::ffi::OsStrExt;
             use std::ptr;
 
-            // 路径转 UTF-16（以 null 结尾），直接作为指针传入，避免命令行解析出错
             let wide: Vec<u16> = std::ffi::OsStr::new(&path)
                 .encode_wide()
                 .chain(std::iter::once(0))
@@ -192,21 +196,35 @@ pub async fn open_with_dialog(path: String) -> Result<(), AppError> {
             unsafe {
                 SHOpenWithDialog(ptr::null_mut(), &info);
             }
+            Ok(String::new())
+        })
+        .await
+        .map_err(|e| AppError::Other(format!("任务执行失败: {e}")))?
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // macOS：打开文件选择器让用户选 .app
+        use tauri_plugin_dialog::DialogExt;
+        let picked = app.dialog().file()
+            .add_filter("应用程序", &["app"])
+            .set_title("选择程序")
+            .blocking_pick_file();
+        match picked {
+            Some(file) => Ok(file.as_path()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default()),
+            None => Ok(String::new()),
         }
-        #[cfg(not(target_os = "windows"))]
-        {
-            // macOS / Linux 回退到系统打开命令
-            #[cfg(target_os = "macos")]
-            let result = std::process::Command::new("open").arg(&path).spawn();
-            #[cfg(target_os = "linux")]
-            let result = std::process::Command::new("xdg-open").arg(&path).spawn();
-            #[cfg(any(target_os = "macos", target_os = "linux"))]
-            result.map_err(|e| AppError::Other(format!("打开文件失败: {e}")))?;
-        }
-        Ok(())
-    })
-    .await
-    .map_err(|e| AppError::Other(format!("任务执行失败: {e}")))?
+    }
+    #[cfg(target_os = "linux")]
+    {
+        tauri::async_runtime::spawn_blocking(move || -> Result<String, AppError> {
+            let _ = std::process::Command::new("xdg-open").arg(&path).spawn();
+            Ok(String::new())
+        })
+        .await
+        .map_err(|e| AppError::Other(format!("任务执行失败: {e}")))?
+    }
 }
 
 #[tauri::command]
@@ -345,7 +363,8 @@ fn read_installed_apps() -> Vec<OpenWithApp> {
     result
 }
 
-/// macOS：扫描常见 Applications 目录，收集 .app 程序包
+/// macOS：扫描常见 Applications 目录，收集有效的 .app 程序包
+/// 只保留有 CFBundleExecutable 的.app（排除 Automator、Books、App Store 等系统占位符）
 #[cfg(target_os = "macos")]
 fn read_mac_apps() -> Vec<OpenWithApp> {
     use std::collections::HashSet;
@@ -353,17 +372,17 @@ fn read_mac_apps() -> Vec<OpenWithApp> {
     let mut seen: HashSet<String> = HashSet::new();
 
     let home = std::env::var("HOME").unwrap_or_default();
-    let roots: Vec<String> = vec![
-        "/System/Applications".to_string(),
-        "/Applications".to_string(),
+    let roots: Vec<&std::path::Path> = vec![
+        std::path::Path::new("/System/Applications"),
+        std::path::Path::new("/Applications"),
         if home.is_empty() {
-            String::new()
+            std::path::Path::new("")
         } else {
-            format!("{home}/Applications")
+            std::path::Path::new(&format!("{home}/Applications"))
         },
     ];
 
-    for root in roots.iter().filter(|r| !r.is_empty()) {
+    for root in roots.iter().filter(|r| !r.as_os_str().is_empty()) {
         let Ok(entries) = std::fs::read_dir(root) else {
             continue;
         };
@@ -371,6 +390,23 @@ fn read_mac_apps() -> Vec<OpenWithApp> {
             let p = entry.path();
             // .app 是目录形式的程序包
             if p.extension().and_then(|s| s.to_str()) != Some("app") {
+                continue;
+            }
+            // 跳过子目录（如 "实用工具"、"系统功能" 等文件夹），只处理顶层 .app
+            if !p.is_dir() {
+                continue;
+            }
+            // 验证：Info.plist 中必须有 CFBundleExecutable（有效应用包才有）
+            let plist_path = p.join("Contents").join("Info.plist");
+            if !plist_path.exists() {
+                continue;
+            }
+            let Ok(plist_data) = std::fs::read(&plist_path) else { continue; };
+            let Ok(Value::Dictionary(map)) = XMLParser::parse(&plist_data) else { continue; };
+            let Some(Value::String(exec_name)) = map.get("CFBundleExecutable") else {
+                continue; // 无 CFBundleExecutable，跳过（如 Books、Automator）
+            };
+            if exec_name.is_empty() {
                 continue;
             }
             let Some(name) = p.file_stem().and_then(|s| s.to_str()) else {
