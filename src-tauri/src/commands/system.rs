@@ -369,17 +369,17 @@ fn read_mac_apps() -> Vec<OpenWithApp> {
     let mut seen: HashSet<String> = HashSet::new();
 
     let home = std::env::var("HOME").unwrap_or_default();
-    let roots: Vec<&std::path::Path> = vec![
-        std::path::Path::new("/System/Applications"),
-        std::path::Path::new("/Applications"),
+    let roots: Vec<String> = vec![
+        "/System/Applications".to_string(),
+        "/Applications".to_string(),
         if home.is_empty() {
-            std::path::Path::new("")
+            String::new()
         } else {
-            std::path::Path::new(&format!("{home}/Applications"))
+            format!("{home}/Applications")
         },
     ];
 
-    for root in roots.iter().filter(|r| !r.as_os_str().is_empty()) {
+    for root in roots.iter().filter(|r| !r.is_empty()) {
         let Ok(entries) = std::fs::read_dir(root) else {
             continue;
         };
