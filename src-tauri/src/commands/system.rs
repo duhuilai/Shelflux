@@ -285,8 +285,17 @@ pub async fn get_open_with_apps(
     }
     #[cfg(target_os = "macos")]
     {
-        let _ = extension;
-        Ok(read_mac_apps())
+        // macOS：根据扩展名过滤应用（类似 Windows 的 OpenWithList）
+        let apps = read_mac_apps();
+        if extension.is_empty() || extension == "." {
+            return Ok(apps);
+        }
+        let ext = extension.to_lowercase();
+        let filtered: Vec<OpenWithApp> = apps
+            .into_iter()
+            .filter(|app| is_app_openable_by_ext(&app.path, &ext))
+            .collect();
+        Ok(filtered)
     }
     #[cfg(target_os = "linux")]
     {
@@ -425,6 +434,36 @@ fn read_mac_apps() -> Vec<OpenWithApp> {
 
     result.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     result
+}
+
+/// macOS：检查应用是否能打开指定扩展名的文件
+/// 通过读取 Info.plist 中的 CFBundleDocumentTypes 或 CFBundleTypeName 来判断
+#[cfg(target_os = "macos")]
+fn is_app_openable_by_ext(app_path: &str, ext: &str) -> bool {
+    // 构建 Info.plist 路径
+    let plist_path = std::path::Path::new(app_path)
+        .join("Contents")
+        .join("Info.plist");
+
+    if !plist_path.exists() {
+        return false;
+    }
+
+    // 使用 plutil 提取 CFBundleDocumentTypes
+    let output = std::process::Command::new("plutil")
+        .args(["-extract", "CFBundleDocumentTypes", "raw", plist_path.to_string_lossy().as_ref()])
+        .output();
+
+    match output {
+        Ok(out) if out.status.success() => {
+            let plist_content = String::from_utf8_lossy(&out.stdout);
+            // 简单检查：如果 plist 包含扩展名，则认为是匹配的应用
+            // 更精确的实现需要解析 plist XML，但这里用简单字符串匹配
+            plist_content.to_lowercase().contains(&format!(".{}", ext.trim_start_matches('.')))
+                || plist_content.to_lowercase().contains(ext)
+        }
+        _ => false,
+    }
 }
 
 /// 解析应用程序的友好显示名：
