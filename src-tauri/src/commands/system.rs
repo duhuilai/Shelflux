@@ -10,9 +10,6 @@ use crate::types::{AppInfo, OpenWithApp};
 #[cfg(target_os = "windows")]
 use winreg::RegKey;
 
-#[cfg(target_os = "macos")]
-use plist::{Value, XMLParser};
-
 #[tauri::command]
 pub async fn open_with_default_app(
     _app: AppHandle,
@@ -396,18 +393,23 @@ fn read_mac_apps() -> Vec<OpenWithApp> {
             if !p.is_dir() {
                 continue;
             }
-            // 验证：Info.plist 中必须有 CFBundleExecutable（有效应用包才有）
+            // 用 plutil 检查 Info.plist 中是否有 CFBundleExecutable（有效应用包才有）
+            // 跳过无 CFBundleExecutable 的占位符（如 Books、Automator、App Store）
             let plist_path = p.join("Contents").join("Info.plist");
             if !plist_path.exists() {
                 continue;
             }
-            let Ok(plist_data) = std::fs::read(&plist_path) else { continue; };
-            let Ok(Value::Dictionary(map)) = XMLParser::parse(&plist_data) else { continue; };
-            let Some(Value::String(exec_name)) = map.get("CFBundleExecutable") else {
-                continue; // 无 CFBundleExecutable，跳过（如 Books、Automator）
-            };
-            if exec_name.is_empty() {
-                continue;
+            let output = std::process::Command::new("plutil")
+                .args(["-extract", "CFBundleExecutable", "raw", plist_path.to_string_lossy().as_ref()])
+                .output();
+            match output {
+                Ok(out) if out.status.success() => {
+                    let exec_name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if exec_name.is_empty() {
+                        continue; // 无 CFBundleExecutable，跳过
+                    }
+                }
+                _ => continue,
             }
             let Some(name) = p.file_stem().and_then(|s| s.to_str()) else {
                 continue;

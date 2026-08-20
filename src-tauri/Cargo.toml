@@ -1,6 +1,6 @@
 [package]
 name = "shelflux"
-version = "0.1.2"
+version = "0.1.3"
 description = "Shelflux - 跨平台多协议连接管理工具（SSH / SFTP / Telnet / Rlogin）"
 authors = ["Shelflux Team"]
 edition = "2021"
@@ -53,10 +53,6 @@ arboard = "3.6.1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 # 流式读取下载分块（bytes_stream + StreamExt）
 futures-util = "0.3"
-
-# macOS: 读取 .app bundle 的 Info.plist
-[target.'cfg(target_os = "macos")'.dependencies]
-plist = "1.10"
 
 # Windows-only native deps. MUST be gated to cfg(windows): both crates contain
 # `compile_error!` for non-Windows targets, so compiling them on macOS/Linux (e.g.

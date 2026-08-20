@@ -4279,7 +4279,7 @@ dependencies = [
 
 [[package]]
 name = "shelflux"
-version = "0.1.1"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "arboard",
@@ -4289,7 +4289,6 @@ dependencies = [
  "futures-util",
  "hex",
  "log",
- "plist",
  "reqwest 0.12.28",
  "russh",
  "russh-keys",
