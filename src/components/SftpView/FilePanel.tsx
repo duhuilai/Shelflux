@@ -375,6 +375,51 @@ export function FilePanel({
       return;
     }
 
+    // 2. 外部拖动：从系统文件管理器拖入文件/文件夹
+    // 使用 dataTransfer.items 以正确处理文件夹（webkitGetAsEntry）
+    const items: FileEntry[] = [];
+    const collectEntries = async (entry: FileSystemEntry) => {
+      if (entry.isFile) {
+        const file = await new Promise<File>((resolve, reject) =>
+          (entry as FileSystemFileEntry).file(resolve, reject)
+        );
+        items.push({
+          name: file.name,
+          path: file.webkitRelativePath || file.name,
+          kind: "file",
+          size: file.size,
+          isSymlink: false,
+        });
+      } else if (entry.isDirectory) {
+        const dirReader = (entry as FileSystemDirectoryEntry).createReader();
+        const readBatch = (): Promise<void> =>
+          new Promise((resolve) =>
+            dirReader.readEntries(async (entries) => {
+              if (entries.length === 0) {
+                resolve();
+                return;
+              }
+              await Promise.all(entries.map(collectEntries));
+              resolve();
+            })
+          );
+        await readBatch();
+      }
+    };
+
+    const entries = Array.from(e.dataTransfer.items)
+      .map((item) => item.webkitGetAsEntry())
+      .filter(Boolean) as FileSystemEntry[];
+
+    if (entries.length === 0) return;
+
+    for (const entry of entries) {
+      await collectEntries(entry);
+    }
+
+    if (items.length > 0) {
+      onTransfer(items);
+    }
   };
 
   // 右键菜单
