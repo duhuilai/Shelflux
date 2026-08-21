@@ -194,10 +194,15 @@ pub async fn sftp_list(
     path: String,
 ) -> Result<Vec<FileEntry>, AppError> {
     // 内部函数：执行实际的 read_dir 操作，返回结果或错误描述字符串
-    let do_read_dir = |sftp: &Arc<Mutex<SftpSession>>| async {
+    // 注意：必须是具名 async fn（而非闭包返回 async 块），否则会触发
+    // "lifetime may not live long enough"——闭包返回的 future 无法约束捕获引用的生命周期。
+    async fn do_read_dir(
+        sftp: &Arc<Mutex<SftpSession>>,
+        p: &str,
+    ) -> Result<russh_sftp::client::fs::ReadDir, String> {
         match tokio::time::timeout(
             Duration::from_secs(30),
-            sftp.lock().await.read_dir(path.as_str()),
+            sftp.lock().await.read_dir(p),
         )
         .await
         {
@@ -205,11 +210,11 @@ pub async fn sftp_list(
             Ok(Err(e)) => Err(e.to_string()),
             Err(_) => Err("读取目录超时 (30s 无响应)".to_string()),
         }
-    };
+    }
 
     // 第一次尝试
     let sftp = get_sftp(&app, &server).await?;
-    match do_read_dir(&sftp).await {
+    match do_read_dir(&sftp, path.as_str()).await {
         Ok(entries) => return Ok(build_file_list(entries, &path)),
         Err(e) => {
             let err_msg = e.to_string();
@@ -232,7 +237,7 @@ pub async fn sftp_list(
                 match get_sftp(&app, &server).await {
                     Ok(sftp2) => {
                         eprintln!("[sftp] retrying read_dir after reconnect");
-                        match do_read_dir(&sftp2).await {
+                        match do_read_dir(&sftp2, path.as_str()).await {
                             Ok(entries) => return Ok(build_file_list(entries, &path)),
                             Err(e2) => {
                                 eprintln!("[sftp] read_dir also failed on retry: {e2}");
