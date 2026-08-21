@@ -193,28 +193,76 @@ pub async fn sftp_list(
     server: ServerConfig,
     path: String,
 ) -> Result<Vec<FileEntry>, AppError> {
-    let sftp = get_sftp(&app, &server).await?;
-
-    // read_dir 加 30s 超时：大目录/慢文件系统/网络瞬断时不至于永久挂起
-    let read_dir = match tokio::time::timeout(
-        Duration::from_secs(30),
-        sftp.lock().await.read_dir(path.as_str()),
-    )
-    .await
-    {
-        Ok(Ok(r)) => r,
-        Ok(Err(e)) => return Err(AppError::Sftp(format!("读取目录失败: {e}"))),
-        Err(_) => {
-            // 超时后剔除可能已失效的会话，下次调用会重建连接
-            evict_sftp_session(&app, &server).await;
-            return Err(AppError::Sftp(format!(
-                "读取目录超时 ({}，30s 无响应)",
-                path
-            )));
-        }
+    // 内部函数：执行实际的 read_dir 操作
+    let do_read_dir = |sftp: &Arc<Mutex<SftpSession>>| async {
+        let read_dir = match tokio::time::timeout(
+            Duration::from_secs(30),
+            sftp.lock().await.read_dir(path.as_str()),
+        )
+        .await
+        {
+            Ok(Ok(r)) => Ok(r),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "读取目录超时 (30s 无响应)",
+            )),
+        };
+        read_dir
     };
 
-    let mut result: Vec<FileEntry> = read_dir
+    // 第一次尝试
+    let sftp = get_sftp(&app, &server).await?;
+    match do_read_dir(&sftp).await {
+        Ok(entries) => return Ok(build_file_list(entries, &path)),
+        Err(e) => {
+            let err_msg = e.to_string();
+            eprintln!("[sftp] read_dir failed on first attempt: {err_msg}");
+
+            // 检测是否是连接/会话失效类错误（这些可以重试）
+            let is_session_err = err_msg.contains("session closed")
+                || err_msg.contains("connection closed")
+                || err_msg.contains("broken pipe")
+                || err_msg.contains("EOF")
+                || err_msg.contains("reset by peer");
+
+            if is_session_err {
+                eprintln!("[sftp] session error detected, evicting and retrying...");
+                // 剔除失效的 SFTP session 和底层 SSH 连接
+                evict_sftp_session(&app, &server).await;
+                evict_ssh_handle(&app, &server).await;
+
+                // 重建连接后重试一次
+                match get_sftp(&app, &server).await {
+                    Ok(sftp2) => {
+                        eprintln!("[sftp] retrying read_dir after reconnect");
+                        match do_read_dir(&sftp2).await {
+                            Ok(entries) => return Ok(build_file_list(entries, &path)),
+                            Err(e2) => {
+                                eprintln!("[sftp] read_dir also failed on retry: {e2}");
+                                evict_sftp_session(&app, &server).await;
+                                return Err(AppError::Sftp(format!(
+                                    "读取目录失败（已重试）: {e2}\n\n提示：请检查服务器 SFTP 配置和用户权限"
+                                )));
+                            }
+                        }
+                    }
+                    Err(e2) => return Err(AppError::Sftp(format!("重建连接失败: {e2}"))),
+                }
+            }
+
+            // 非 session 类错误，直接返回
+            Err(AppError::Sftp(format!("读取目录失败: {e}")))
+        }
+    }
+}
+
+/// 从 SFTP 目录条目构建 FileEntry 列表
+fn build_file_list(
+    entries: Vec<russh_sftp::client::DirEntry>,
+    path: &str,
+) -> Vec<FileEntry> {
+    let mut result: Vec<FileEntry> = entries
         .map(|entry| {
             let name = entry.file_name();
             let full = if path.ends_with('/') {
