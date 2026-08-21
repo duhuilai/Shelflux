@@ -193,22 +193,18 @@ pub async fn sftp_list(
     server: ServerConfig,
     path: String,
 ) -> Result<Vec<FileEntry>, AppError> {
-    // 内部函数：执行实际的 read_dir 操作
+    // 内部函数：执行实际的 read_dir 操作，返回结果或错误描述字符串
     let do_read_dir = |sftp: &Arc<Mutex<SftpSession>>| async {
-        let read_dir = match tokio::time::timeout(
+        match tokio::time::timeout(
             Duration::from_secs(30),
             sftp.lock().await.read_dir(path.as_str()),
         )
         .await
         {
             Ok(Ok(r)) => Ok(r),
-            Ok(Err(e)) => Err(e),
-            Err(_) => Err(std::io::Error::new(
-                std::io::ErrorKind::TimedOut,
-                "读取目录超时 (30s 无响应)",
-            )),
-        };
-        read_dir
+            Ok(Err(e)) => Err(e.to_string()),
+            Err(_) => Err("读取目录超时 (30s 无响应)".to_string()),
+        }
     };
 
     // 第一次尝试
@@ -259,7 +255,7 @@ pub async fn sftp_list(
 
 /// 从 SFTP 目录条目构建 FileEntry 列表
 fn build_file_list(
-    entries: Vec<russh_sftp::client::DirEntry>,
+    entries: russh_sftp::client::fs::ReadDir,
     path: &str,
 ) -> Vec<FileEntry> {
     let mut result: Vec<FileEntry> = entries
@@ -296,7 +292,7 @@ fn build_file_list(
         ("file", "dir") | ("symlink", "dir") => std::cmp::Ordering::Greater,
         _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
     });
-    Ok(result)
+    result
 }
 
 #[tauri::command]
