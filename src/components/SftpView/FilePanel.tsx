@@ -656,29 +656,38 @@ export function FilePanel({
   // 构造右键菜单项
   const buildContextMenu = (): ContextMenuItem[] => {
     const item = contextMenu?.item;
+    const clip = useUiStore.getState().clipboard;
+    const canPaste = clip !== null && clip.items.length > 0;
+
     if (!item) {
       // 空白处
       return [
         { label: "新建文件夹", icon: <FolderPlusIcon />, onClick: newFolder },
         { label: "新建文件", icon: <FilePlusIcon />, onClick: newFile },
         { divider: true },
-        { label: "刷新", icon: <RefreshIcon />, onClick: refresh },
         { label: "复制当前路径", icon: <LinkIcon />, onClick: () => copyUrl({ name: currentPath, path: currentPath, kind: "dir", size: 0, isSymlink: false }) },
+        { divider: true },
+        { label: "粘贴", icon: <PasteIcon />, onClick: () => void pasteItems(), disabled: !canPaste },
+        { divider: true },
+        { label: "刷新", icon: <RefreshIcon />, onClick: refresh },
       ];
     }
     if (item.kind === "dir") {
       return [
         { label: "打开", icon: <ArrowRightIcon />, onClick: () => onPathChange(item.path) },
         { label: "传输到对面", icon: <TransferIcon />, onClick: () => onTransfer([item]) },
+        { divider: true },
+        { label: "复制", icon: <CopyIcon />, onClick: () => { setSelected(new Set([item.path])); copySelection(); } },
+        { label: "复制路径", icon: <LinkIcon />, onClick: () => copyUrl(item) },
+        { divider: true },
         { label: "重命名", icon: <EditIcon />, onClick: () => renameItem(item) },
+        { divider: true },
+        { label: "粘贴", icon: <PasteIcon />, onClick: () => void pasteItems(), disabled: !canPaste },
         { divider: true },
         { label: "新建文件夹", icon: <FolderPlusIcon />, onClick: newFolder },
         { label: "新建文件", icon: <FilePlusIcon />, onClick: newFile },
         { divider: true },
         { label: "刷新", icon: <RefreshIcon />, onClick: refresh },
-        { divider: true },
-        { label: "复制路径", icon: <LinkIcon />, onClick: () => copyUrl(item) },
-        { label: "复制为", icon: <CopyIcon />, onClick: () => copyFile(item) },
         { divider: true },
         { label: "删除", icon: <TrashIcon />, danger: true, onClick: () => deleteItem(item) },
       ];
@@ -828,11 +837,14 @@ export function FilePanel({
       { label: "传输到对面", icon: <TransferIcon />, onClick: () => onTransfer([item]) },
       { label: "重命名", icon: <EditIcon />, onClick: () => renameItem(item) },
       { divider: true },
+      { label: "复制", icon: <CopyIcon />, onClick: () => { setSelected(new Set([item.path])); copySelection(); } },
       { label: "复制路径", icon: <LinkIcon />, onClick: () => copyUrl(item) },
       { label: "复制为", icon: <CopyIcon />, onClick: () => copyFile(item) },
       { divider: true },
-        { label: "删除", icon: <TrashIcon />, danger: true, onClick: () => deleteItem(item) },
-      ];
+      { label: "粘贴", icon: <PasteIcon />, onClick: () => void pasteItems(), disabled: !canPaste },
+      { divider: true },
+      { label: "删除", icon: <TrashIcon />, danger: true, onClick: () => deleteItem(item) },
+    ];
   };
 
   /** 远端文件还没下载时，先下载再用指定程序打开并开始监控 */
@@ -1364,6 +1376,14 @@ function CopyIcon() {
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.1" fill="none" />
       <path d="M2 8V2h6" stroke="currentColor" strokeWidth="1.1" fill="none" />
+    </svg>
+  );
+}
+function PasteIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <rect x="2" y="2" width="8" height="9" rx="1" stroke="currentColor" strokeWidth="1.1" fill="none" />
+      <path d="M4.5 2V1h3v1M4 4h4v4H4z" stroke="currentColor" strokeWidth="1.1" fill="none" />
     </svg>
   );
 }
