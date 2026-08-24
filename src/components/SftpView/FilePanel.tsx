@@ -612,7 +612,9 @@ export function FilePanel({
       } else {
         // 远端文件：下载 → 打开（优先用自定义默认应用）→ 监控回传
         const tmpDir = await invoke<string>("local_home");
-        const tmpPath = joinPath(tmpDir, ".shelflux-cache", basename(item.path));
+        // 用 server.id 隔离不同服务器的缓存，避免同名文件互相覆盖
+        const cacheDir = server.alias || server.id;
+        const tmpPath = joinPath(tmpDir, ".shelflux-cache", cacheDir, basename(item.path));
         toast.info("下载中", item.name);
         if (defaultApp) {
           await invoke("open_remote_file_with", { server, remote: item.path, local: tmpPath, program: defaultApp });
@@ -638,7 +640,8 @@ export function FilePanel({
   const openRemoteWithProgram = async (item: FileEntry, programPath: string) => {
     try {
       const tmpDir = await invoke<string>("local_home");
-      const tmpPath = joinPath(tmpDir, ".shelflux-cache", basename(item.path));
+      const cacheDir = server.alias || server.id;
+      const tmpPath = joinPath(tmpDir, ".shelflux-cache", cacheDir, basename(item.path));
       toast.info("下载中", item.name);
       await invoke("open_remote_file_with", {
         server,
@@ -852,7 +855,8 @@ export function FilePanel({
     if (side !== "remote") return;
     try {
       const tmpDir = await invoke<string>("local_home");
-      const tmpPath = joinPath(tmpDir, ".shelflux-cache", basename(item.path));
+      const cacheDir = server.alias || server.id;
+      const tmpPath = joinPath(tmpDir, ".shelflux-cache", cacheDir, basename(item.path));
       toast.info("下载中", item.name);
       await invoke("open_remote_file_with", {
         server,
