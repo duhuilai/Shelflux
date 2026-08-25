@@ -457,6 +457,26 @@
   white-space: nowrap;
 }
 
+/* 行内重命名输入框 */
+.sftp-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1.5px solid var(--primary, #3b82f6);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--bg-input, #fff);
+  color: var(--fg-primary, #111);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-alpha, rgba(59,130,246,0.15));
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+.sftp-rename-input:focus {
+  border-color: var(--primary, #3b82f6);
+}
+
 /* 列宽拖拽手柄（位于表头右边缘） */
 .col-resizer {
   position: absolute;

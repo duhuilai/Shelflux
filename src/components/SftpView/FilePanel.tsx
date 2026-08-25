@@ -54,6 +54,10 @@ export function FilePanel({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editingPath, setEditingPath] = useState(false);
+  // 行内重命名状态
+  const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -294,15 +298,69 @@ export function FilePanel({
       onPathChange(dirname(currentPath));
   };
 
-  // 双击文件
+  // 双击文件：目录进入，文件进入重命名模式
   const handleDoubleClick = (item: FileEntry) => {
     if (item.kind === "dir") {
       onPathChange(item.path);
     } else {
-      // 双击文件 = 上传/下载
-      onTransfer([item]);
+      // 双击文件 = 进入重命名模式
+      startRename(item);
     }
   };
+
+  // 开始行内重命名
+  const startRename = useCallback((item: FileEntry) => {
+    setRenamingPath(item.path);
+    setRenameValue(item.name);
+    // 下次渲染后聚焦并选中文本
+    setTimeout(() => {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }, 10);
+  }, []);
+
+  // 完成重命名
+  const finishRename = useCallback(async () => {
+    if (!renamingPath) return;
+    const item = entries.find(e => e.path === renamingPath);
+    if (!item || !renameValue.trim() || renameValue.trim() === item.name) {
+      setRenamingPath(null);
+      return;
+    }
+    const newName = renameValue.trim();
+    try {
+      const from = item.path;
+      const to = joinPath(dirname(item.path), newName);
+      if (side === "local") {
+        await invoke("local_rename", { from, to });
+      } else {
+        await invoke("sftp_rename", { server, from, to });
+      }
+      await load(currentPath);
+      toast.success("已重命名", newName);
+    } catch (e: any) {
+      toast.error("重命名失败", e.toString());
+    } finally {
+      setRenamingPath(null);
+    }
+  }, [renamingPath, renameValue, entries, side, server, currentPath, load]);
+
+  // 取消重命名
+  const cancelRename = useCallback(() => {
+    setRenamingPath(null);
+  }, []);
+
+  // 点击外部时取消重命名
+  useEffect(() => {
+    if (!renamingPath) return;
+    const onClick = (e: MouseEvent) => {
+      if (renameInputRef.current && !renameInputRef.current.contains(e.target as Node)) {
+        void finishRename();
+      }
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, [renamingPath, finishRename]);
 
   // 单击选中
   const handleClick = (e: React.MouseEvent, item: FileEntry) => {
@@ -1083,14 +1141,35 @@ export function FilePanel({
                 onContextMenu={(e) => handleContextMenu(e, item)}
               >
                 <div className="sftp-grid-cell name">
-                  <div className="sftp-file-name">
-                    <span className={`sftp-file-icon ${item.kind}`}>
-                      {item.kind === "dir" ? <FolderIcon /> : item.kind === "symlink" ? <SymlinkIcon /> : getFileTypeIcon(item.name)}
-                    </span>
-                    <span className="sftp-file-name-text" title={item.path}>
-                      {item.name}
-                    </span>
-                  </div>
+                  {renamingPath === item.path ? (
+                    <input
+                      ref={renameInputRef}
+                      className="sftp-rename-input"
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void finishRename();
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          cancelRename();
+                        }
+                      }}
+                      onBlur={() => void finishRename()}
+                      maxLength={255}
+                    />
+                  ) : (
+                    <div className="sftp-file-name">
+                      <span className={`sftp-file-icon ${item.kind}`}>
+                        {item.kind === "dir" ? <FolderIcon /> : item.kind === "symlink" ? <SymlinkIcon /> : getFileTypeIcon(item.name)}
+                      </span>
+                      <span className="sftp-file-name-text" title={item.path}>
+                        {item.name}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div
                   className="sftp-grid-cell size"
