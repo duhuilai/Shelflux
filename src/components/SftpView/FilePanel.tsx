@@ -58,6 +58,8 @@ export function FilePanel({
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
+  // 双击节奏判定：区分“快速双击”（传输/打开）与“慢点两下”（重命名）
+  const lastClickRef = useRef<{ time: number; path: string | null }>({ time: 0, path: null });
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -298,15 +300,7 @@ export function FilePanel({
       onPathChange(dirname(currentPath));
   };
 
-  // 双击文件：目录进入，文件进入重命名模式
-  const handleDoubleClick = (item: FileEntry) => {
-    if (item.kind === "dir") {
-      onPathChange(item.path);
-    } else {
-      // 双击文件 = 进入重命名模式
-      startRename(item);
-    }
-  };
+  // 双击节奏改由 handleClick 内按两次点击的时间间隔判定（见下方）
 
   // 开始行内重命名
   const startRename = useCallback((item: FileEntry) => {
@@ -362,8 +356,14 @@ export function FilePanel({
     return () => document.removeEventListener("click", onClick);
   }, [renamingPath, finishRename]);
 
-  // 单击选中
+  // 单击选中 + 双击节奏判定
+  // 快速双击（≤600ms）→ 目录进入 / 文件传输并打开
+  // 慢点两下（600ms~2s）→ 行内重命名
+  const FAST_DBLCLICK_MAX = 600;
+  const SLOW_DBLCLICK_MAX = 2000;
+
   const handleClick = (e: React.MouseEvent, item: FileEntry) => {
+    // —— 选中逻辑（与多选兼容）——
     if (e.ctrlKey || e.metaKey) {
       const next = new Set(selected);
       if (next.has(item.path)) next.delete(item.path);
@@ -372,8 +372,8 @@ export function FilePanel({
     } else if (e.shiftKey && selected.size > 0) {
       // 范围选择
       const lastSelected = Array.from(selected).pop()!;
-      const startIdx = entries.findIndex((e) => e.path === lastSelected);
-      const endIdx = entries.findIndex((e) => e.path === item.path);
+      const startIdx = entries.findIndex((en) => en.path === lastSelected);
+      const endIdx = entries.findIndex((en) => en.path === item.path);
       const [s, e2] = [Math.min(startIdx, endIdx), Math.max(startIdx, endIdx)];
       const next = new Set(selected);
       for (let i = s; i <= e2; i++) next.add(entries[i].path);
@@ -381,6 +381,32 @@ export function FilePanel({
     } else {
       setSelected(new Set([item.path]));
     }
+
+    // 重命名进行中或带修饰键时，不做双击判定，避免误触发传输
+    if (renamingPath || e.ctrlKey || e.metaKey || e.shiftKey) {
+      lastClickRef.current = { time: 0, path: null };
+      return;
+    }
+
+    const now = Date.now();
+    const last = lastClickRef.current;
+    if (last.path === item.path) {
+      const gap = now - last.time;
+      if (gap <= FAST_DBLCLICK_MAX) {
+        // 快速双击：目录进入，文件传输/打开
+        lastClickRef.current = { time: 0, path: null };
+        if (item.kind === "dir") onPathChange(item.path);
+        else void openItem(item);
+        return;
+      } else if (gap <= SLOW_DBLCLICK_MAX) {
+        // 慢点两下（1-2 秒内）：行内重命名
+        lastClickRef.current = { time: 0, path: null };
+        startRename(item);
+        return;
+      }
+      // 间隔超过 2s：视为一次新的单击，下面更新记录
+    }
+    lastClickRef.current = { time: now, path: item.path };
   };
 
   // 拖动文件到另一侧
@@ -1130,7 +1156,6 @@ export function FilePanel({
                 draggable
                 onDragStart={(e) => handleDragStart(e, item)}
                 onClick={(e) => handleClick(e, item)}
-                onDoubleClick={() => handleDoubleClick(item)}
                 onContextMenu={(e) => handleContextMenu(e, item)}
               >
                 <div className="sftp-grid-cell name">
