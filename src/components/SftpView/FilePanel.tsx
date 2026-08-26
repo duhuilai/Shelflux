@@ -395,20 +395,17 @@ export function FilePanel({
     const payload = JSON.stringify({ side, items });
     e.dataTransfer.setData("text/plain", `shelflux:${payload}`);
     e.dataTransfer.effectAllowed = "move";
-    console.log(`[drag] start on ${side}:`, item.name, "items:", items.map(i => i.name));
   };
 
   // 接收来自另一侧的拖动
   const onDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    console.log(`[drag] over on ${side}`);
   };
   const onDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current += 1;
     setDragOver(true);
-    console.log(`[drag] enter on ${side}, counter:`, dragCounter.current);
   };
   const onDragLeave = (e: React.DragEvent) => {
     dragCounter.current -= 1;
@@ -416,32 +413,16 @@ export function FilePanel({
       dragCounter.current = 0;
       setDragOver(false);
     }
-    console.log(`[drag] leave on ${side}, counter:`, dragCounter.current);
   };
   const onDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current = 0;
     setDragOver(false);
-    console.log(`[drag] drop on ${side}`);
 
-    // 1. Shelflux 内部拖放（跨侧传输）— 用 text/plain + 前缀标记
+    // 1. Shelflux 内部拖放（跨侧传输）交由 SftpView 的全局 document drop 监听统一处理，
+    //    本面板不再处理，避免 macOS 上目标面板 onDrop 与全局 handler 重复触发传输。
     const raw = e.dataTransfer.getData("text/plain");
-    console.log(`[drag] dataTransfer type:`, e.dataTransfer.types, "raw:", raw?.slice(0, 50));
     if (raw && raw.startsWith("shelflux:")) {
-      try {
-        const parsed = JSON.parse(raw.slice("shelflux:".length));
-        console.log(`[drag] parsed:`, parsed);
-        if (parsed.side !== side && Array.isArray(parsed.items)) {
-          // 直接使用 payload 中的完整文件信息，不再去目标面板 entries 查找（跨侧时路径不在本地）
-          const items = parsed.items as FileEntry[];
-          console.log(`[drag] triggering transfer:`, items.map(i => i.name));
-          if (items.length > 0) onTransfer(items);
-        } else {
-          console.log(`[drag] same side or invalid items`, parsed.side, side);
-        }
-      } catch (err) {
-        console.error(`[drag] parse error:`, err);
-      }
       return;
     }
 

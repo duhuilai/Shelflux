@@ -176,6 +176,66 @@ export function SftpView({ tab }: Props) {
     [settings.transfers.confirmOverwrite, activeRemotePath, activeLocalPath, tab.server, askConfirm, handleTransfer]
   );
 
+  // 全局 drop 处理：解决 WebView2 跨面板拖放事件丢失问题
+  // Windows WebView2 下，源面板拖出的 dragover/dragenter/drop 不会派发到目标面板，
+  // 只能在 document 级别捕获 drop，再根据鼠标 X 坐标判定落在哪一侧。
+  // 方向由“源侧”决定：本地文件→远端 = 上传；远端文件→本地 = 下载。
+  // macOS 上目标面板自身 onDrop 也会触发，但 FilePanel 已对 shelflux: 内部拖放做了 no-op，
+  // 因此不会重复传输，全局 handler 是内部跨面板拖放的唯一处理入口。
+  useEffect(() => {
+    const handleGlobalDragOver = (e: DragEvent) => {
+      // 仅当拖拽携带 text/plain（我们的内部拖放）时才干预，外部文件拖入交给 FilePanel
+      const dt = e.dataTransfer;
+      if (dt && Array.from(dt.types).includes("text/plain")) {
+        e.preventDefault();
+        e.stopPropagation();
+        dt.dropEffect = "move";
+      }
+    };
+
+    const handleGlobalDrop = (e: DragEvent) => {
+      const dt = e.dataTransfer;
+      if (!dt) return;
+      const raw = dt.getData("text/plain");
+      if (!raw || !raw.startsWith("shelflux:")) return; // 非内部拖放（外部文件）交给 FilePanel
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      try {
+        const parsed = JSON.parse(raw.slice("shelflux:".length));
+        if (parsed.side === undefined || !Array.isArray(parsed.items)) return;
+
+        // 根据鼠标位置判定目标面板（取两个面板列的实际边界，左列右侧即分隔线）
+        const cols = document.querySelectorAll<HTMLElement>(".sftp-panel-col");
+        let targetSide: "local" | "remote" = "remote";
+        if (cols.length >= 2) {
+          const localRect = cols[0].getBoundingClientRect();
+          targetSide = e.clientX < localRect.right ? "local" : "remote";
+        } else {
+          const midX = window.innerWidth / 2;
+          targetSide = e.clientX < midX ? "local" : "remote";
+        }
+
+        // 不能拖到同侧
+        if (parsed.side === targetSide) return;
+
+        // 方向由源侧决定：本地文件→远端=上传，远端文件→本地=下载
+        const direction = parsed.side === "local" ? "upload" : "download";
+        checkAndTransfer(parsed.items, direction);
+      } catch {
+        // 忽略解析错误
+      }
+    };
+
+    document.addEventListener("dragover", handleGlobalDragOver);
+    document.addEventListener("drop", handleGlobalDrop);
+    return () => {
+      document.removeEventListener("dragover", handleGlobalDragOver);
+      document.removeEventListener("drop", handleGlobalDrop);
+    };
+  }, [checkAndTransfer]);
+
   // ===== 文件夹页签操作 =====
   const setLocalTabPath = useCallback((id: string, p: string) => {
     setLocalTabs((prev) => prev.map((t) => (t.id === id ? { ...t, path: p } : t)));
