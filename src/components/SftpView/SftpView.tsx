@@ -183,14 +183,15 @@ export function SftpView({ tab }: Props) {
   // macOS 上目标面板自身 onDrop 也会触发，但 FilePanel 已对 shelflux: 内部拖放做了 no-op，
   // 因此不会重复传输，全局 handler 是内部跨面板拖放的唯一处理入口。
   useEffect(() => {
+    // 无条件允许放置：drop 端会校验数据格式（shelflux: 前缀），非内部拖放不处理。
+    // 必须在 dragover + dragenter 都 preventDefault，否则 WebView2 显示 ⊘ 禁止光标。
+    const handleGlobalDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    };
     const handleGlobalDragOver = (e: DragEvent) => {
-      // 仅当拖拽携带 text/plain（我们的内部拖放）时才干预，外部文件拖入交给 FilePanel
-      const dt = e.dataTransfer;
-      if (dt && Array.from(dt.types).includes("text/plain")) {
-        e.preventDefault();
-        e.stopPropagation();
-        dt.dropEffect = "move";
-      }
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     };
 
     const handleGlobalDrop = (e: DragEvent) => {
@@ -228,9 +229,11 @@ export function SftpView({ tab }: Props) {
       }
     };
 
+    document.addEventListener("dragenter", handleGlobalDragEnter);
     document.addEventListener("dragover", handleGlobalDragOver);
     document.addEventListener("drop", handleGlobalDrop);
     return () => {
+      document.removeEventListener("dragenter", handleGlobalDragEnter);
       document.removeEventListener("dragover", handleGlobalDragOver);
       document.removeEventListener("drop", handleGlobalDrop);
     };
