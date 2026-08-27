@@ -437,7 +437,6 @@ export function FilePanel({
     const onMove = (ev: MouseEvent) => {
       if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 5) {
         moved = true;
-        suppressClickRef.current = true;
         setIsPointerDragging(true);
         const ghost = document.createElement("div");
         ghost.className = "sftp-drag-ghost";
@@ -472,6 +471,9 @@ export function FilePanel({
         }
         // 拖到对侧才传输（本侧拖放为 no-op）
         if (targetSide !== side && items.length > 0) {
+          // 仅当真正发生跨面板传输时，才抑制随后派发的 click，
+          // 避免它干扰 handleClick 的双击计时（否则普通点击抖动>5px 会被吞掉）
+          suppressClickRef.current = true;
           onTransfer(items);
         }
       }
