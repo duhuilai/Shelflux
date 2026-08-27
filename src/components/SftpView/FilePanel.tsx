@@ -62,7 +62,6 @@ export function FilePanel({
   const lastClickRef = useRef<{ time: number; path: string | null }>({ time: 0, path: null });
   // 自定义指针拖拽（替代 HTML5 DnD，规避 Windows WebView2 跨面板事件丢失 / 禁止光标）
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
-  const suppressClickRef = useRef(false);
   const [isPointerDragging, setIsPointerDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -366,19 +365,22 @@ export function FilePanel({
   const FAST_DBLCLICK_MAX = 600;
   const SLOW_DBLCLICK_MAX = 3000;
 
-  const handleClick = (e: React.MouseEvent, item: FileEntry) => {
-    // 自定义拖拽结束后浏览器可能补发一次 click，忽略它避免误选/误触发
-    if (suppressClickRef.current) {
-      suppressClickRef.current = false;
-      return;
-    }
+  // 选中 + 双击节奏判定。
+  // 由 onRowMouseDown 的 onUp(!moved) 调用，而不是 React 的 onClick——
+  // Windows/WebView2 下 mousedown→mouseup 间只要鼠标有微小移动（<系统拖拽阈值）
+  // 就不会派发 click，导致慢双击（手抖更明显）的 click 被吞、双击计时失效。
+  // mouseup 必然派发，改为在此直接触发点击逻辑，行为稳定可靠。
+  const handleClick = (
+    item: FileEntry,
+    mods: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }
+  ) => {
     // —— 选中逻辑（与多选兼容）——
-    if (e.ctrlKey || e.metaKey) {
+    if (mods.ctrlKey || mods.metaKey) {
       const next = new Set(selected);
       if (next.has(item.path)) next.delete(item.path);
       else next.add(item.path);
       setSelected(next);
-    } else if (e.shiftKey && selected.size > 0) {
+    } else if (mods.shiftKey && selected.size > 0) {
       // 范围选择
       const lastSelected = Array.from(selected).pop()!;
       const startIdx = entries.findIndex((en) => en.path === lastSelected);
@@ -392,7 +394,7 @@ export function FilePanel({
     }
 
     // 重命名进行中或带修饰键时，不做双击判定，避免误触发传输
-    if (renamingPath || e.ctrlKey || e.metaKey || e.shiftKey) {
+    if (renamingPath || mods.ctrlKey || mods.metaKey || mods.shiftKey) {
       lastClickRef.current = { time: 0, path: null };
       return;
     }
@@ -435,7 +437,7 @@ export function FilePanel({
     let moved = false;
 
     const onMove = (ev: MouseEvent) => {
-      if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 5) {
+      if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8) {
         moved = true;
         setIsPointerDragging(true);
         const ghost = document.createElement("div");
@@ -454,33 +456,39 @@ export function FilePanel({
     const onUp = (ev: MouseEvent) => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
-      if (moved) {
-        setIsPointerDragging(false);
-        if (dragGhostRef.current) {
-          dragGhostRef.current.remove();
-          dragGhostRef.current = null;
-        }
-        // 按鼠标 X 判定目标面板（左列右侧即分隔线）
-        const cols = document.querySelectorAll<HTMLElement>(".sftp-panel-col");
-        let targetSide: "local" | "remote" = "remote";
-        if (cols.length >= 2) {
-          const localRect = cols[0].getBoundingClientRect();
-          targetSide = ev.clientX < localRect.right ? "local" : "remote";
-        } else {
-          targetSide = ev.clientX < window.innerWidth / 2 ? "local" : "remote";
-        }
-        // 拖到对侧才传输（本侧拖放为 no-op）
-        if (targetSide !== side && items.length > 0) {
-          // 仅当真正发生跨面板传输时，才抑制随后派发的 click，
-          // 避免它干扰 handleClick 的双击计时（否则普通点击抖动>5px 会被吞掉）
-          suppressClickRef.current = true;
-          onTransfer(items);
-        }
+      if (!moved) {
+        // 未发生拖拽 = 一次有效点击（不依赖浏览器 click，避免移动被吞）
+        handleClick(item, {
+          ctrlKey: ev.ctrlKey,
+          metaKey: ev.metaKey,
+          shiftKey: ev.shiftKey,
+        });
+        return;
       }
-      // 兜底清除抑制标志（若浏览器未补发 click）
-      window.setTimeout(() => {
-        suppressClickRef.current = false;
-      }, 0);
+      // 发生拖拽：清理幽灵，按鼠标 X 判定目标面板（左列右侧即分隔线）
+      setIsPointerDragging(false);
+      if (dragGhostRef.current) {
+        dragGhostRef.current.remove();
+        dragGhostRef.current = null;
+      }
+      const cols = document.querySelectorAll<HTMLElement>(".sftp-panel-col");
+      let targetSide: "local" | "remote" = "remote";
+      if (cols.length >= 2) {
+        const localRect = cols[0].getBoundingClientRect();
+        targetSide = ev.clientX < localRect.right ? "local" : "remote";
+      } else {
+        targetSide = ev.clientX < window.innerWidth / 2 ? "local" : "remote";
+      }
+      if (targetSide !== side && items.length > 0) {
+        onTransfer(items); // 跨面板传输
+      } else {
+        // 同侧拖放（moved 但落回本侧）= 视为一次点击，保证双击计时/选中一致
+        handleClick(item, {
+          ctrlKey: ev.ctrlKey,
+          metaKey: ev.metaKey,
+          shiftKey: ev.shiftKey,
+        });
+      }
     };
 
     window.addEventListener("mousemove", onMove);
@@ -1218,7 +1226,6 @@ export function FilePanel({
                 key={item.path}
                 className={`sftp-grid-row ${selected.has(item.path) ? "selected" : ""} ${isPointerDragging ? "dragging" : ""}`}
                 onMouseDown={(e) => onRowMouseDown(e, item)}
-                onClick={(e) => handleClick(e, item)}
                 onContextMenu={(e) => handleContextMenu(e, item)}
               >
                 <div className="sftp-grid-cell name">
