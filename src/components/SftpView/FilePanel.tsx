@@ -362,9 +362,9 @@ export function FilePanel({
 
   // 单击选中 + 双击节奏判定
   // 快速双击（≤600ms）→ 目录进入 / 文件传输（与拖到对侧等价）
-  // 慢点两下（600ms~2s）→ 行内重命名
+  // 慢点两下（600ms~3s）→ 行内重命名
   const FAST_DBLCLICK_MAX = 600;
-  const SLOW_DBLCLICK_MAX = 2000;
+  const SLOW_DBLCLICK_MAX = 3000;
 
   const handleClick = (e: React.MouseEvent, item: FileEntry) => {
     // 自定义拖拽结束后浏览器可能补发一次 click，忽略它避免误选/误触发
