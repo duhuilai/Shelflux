@@ -361,7 +361,7 @@ export function FilePanel({
   }, [renamingPath, finishRename]);
 
   // 单击选中 + 双击节奏判定
-  // 快速双击（≤600ms）→ 目录进入 / 文件传输并打开
+  // 快速双击（≤600ms）→ 目录进入 / 文件传输（与拖到对侧等价）
   // 慢点两下（600ms~2s）→ 行内重命名
   const FAST_DBLCLICK_MAX = 600;
   const SLOW_DBLCLICK_MAX = 2000;
@@ -402,10 +402,10 @@ export function FilePanel({
     if (last.path === item.path) {
       const gap = now - last.time;
       if (gap <= FAST_DBLCLICK_MAX) {
-        // 快速双击：目录进入，文件传输/打开
+        // 快速双击：目录进入，文件传输（与拖到对侧等价）
         lastClickRef.current = { time: 0, path: null };
         if (item.kind === "dir") onPathChange(item.path);
-        else void openItem(item);
+        else void onTransfer([item]);
         return;
       } else if (gap <= SLOW_DBLCLICK_MAX) {
         // 慢点两下（1-2 秒内）：行内重命名
