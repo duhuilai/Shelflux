@@ -477,6 +477,30 @@
   border-color: var(--primary, #3b82f6);
 }
 
+/* 自定义指针拖拽的浮动幽灵（跟随光标） */
+.sftp-drag-ghost {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  max-width: 280px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: var(--primary, #3b82f6);
+  color: #fff;
+  font-size: 12px;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  opacity: 0.92;
+}
+
+/* 拖拽中的行：淡化表示已“抓起” */
+.sftp-grid-row.dragging {
+  opacity: 0.5;
+}
+
 /* 列宽拖拽手柄（位于表头右边缘） */
 .col-resizer {
   position: absolute;

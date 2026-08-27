@@ -60,6 +60,10 @@ export function FilePanel({
   const renameInputRef = useRef<HTMLInputElement>(null);
   // 双击节奏判定：区分“快速双击”（传输/打开）与“慢点两下”（重命名）
   const lastClickRef = useRef<{ time: number; path: string | null }>({ time: 0, path: null });
+  // 自定义指针拖拽（替代 HTML5 DnD，规避 Windows WebView2 跨面板事件丢失 / 禁止光标）
+  const dragGhostRef = useRef<HTMLDivElement | null>(null);
+  const suppressClickRef = useRef(false);
+  const [isPointerDragging, setIsPointerDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -363,6 +367,11 @@ export function FilePanel({
   const SLOW_DBLCLICK_MAX = 2000;
 
   const handleClick = (e: React.MouseEvent, item: FileEntry) => {
+    // 自定义拖拽结束后浏览器可能补发一次 click，忽略它避免误选/误触发
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     // —— 选中逻辑（与多选兼容）——
     if (e.ctrlKey || e.metaKey) {
       const next = new Set(selected);
@@ -409,18 +418,71 @@ export function FilePanel({
     lastClickRef.current = { time: now, path: item.path };
   };
 
-  // 拖动文件到另一侧
-  // 注意：不能用自定义 MIME 类型（如 "application/x-shelflux-files"），
-  // Windows WebView2 对自定义 MIME 支持不稳定，getData 会返回空串。
-  // 改用 "text/plain" + 前缀标记来可靠传递 payload。
-  const handleDragStart = (e: React.DragEvent, item: FileEntry) => {
-    // 只在按住时把已选中的项目一起拖动
+  // 自定义指针拖拽（替代 HTML5 DnD）
+  // Windows WebView2 下 HTML5 跨面板拖放的 dragover/enter/drop 不会派发到目标面板，
+  // 导致光标全程显示 ⊘ 且无法传输。改用鼠标事件自建拖拽，跨平台一致、可控。
+  const onRowMouseDown = (e: React.MouseEvent, item: FileEntry) => {
+    if (e.button !== 0) return; // 仅左键
+    if (renamingPath) return; // 重命名中不拖
+    const t = e.target as HTMLElement;
+    if (t.closest(".col-resizer") || t.closest("input")) return; // 列宽手柄 / 输入框不拖
+
     const items = selected.has(item.path)
       ? entries.filter((en) => selected.has(en.path))
       : [item];
-    const payload = JSON.stringify({ side, items });
-    e.dataTransfer.setData("text/plain", `shelflux:${payload}`);
-    e.dataTransfer.effectAllowed = "move";
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let moved = false;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 5) {
+        moved = true;
+        suppressClickRef.current = true;
+        setIsPointerDragging(true);
+        const ghost = document.createElement("div");
+        ghost.className = "sftp-drag-ghost";
+        ghost.textContent =
+          items.length > 1 ? `${items[0].name} 等 ${items.length} 项` : items[0].name;
+        document.body.appendChild(ghost);
+        dragGhostRef.current = ghost;
+      }
+      if (moved && dragGhostRef.current) {
+        dragGhostRef.current.style.left = `${ev.clientX + 14}px`;
+        dragGhostRef.current.style.top = `${ev.clientY + 14}px`;
+      }
+    };
+
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      if (moved) {
+        setIsPointerDragging(false);
+        if (dragGhostRef.current) {
+          dragGhostRef.current.remove();
+          dragGhostRef.current = null;
+        }
+        // 按鼠标 X 判定目标面板（左列右侧即分隔线）
+        const cols = document.querySelectorAll<HTMLElement>(".sftp-panel-col");
+        let targetSide: "local" | "remote" = "remote";
+        if (cols.length >= 2) {
+          const localRect = cols[0].getBoundingClientRect();
+          targetSide = ev.clientX < localRect.right ? "local" : "remote";
+        } else {
+          targetSide = ev.clientX < window.innerWidth / 2 ? "local" : "remote";
+        }
+        // 拖到对侧才传输（本侧拖放为 no-op）
+        if (targetSide !== side && items.length > 0) {
+          onTransfer(items);
+        }
+      }
+      // 兜底清除抑制标志（若浏览器未补发 click）
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
   };
 
   // 接收来自另一侧的拖动
@@ -1152,9 +1214,8 @@ export function FilePanel({
             {sortedEntries.map((item) => (
               <div
                 key={item.path}
-                className={`sftp-grid-row ${selected.has(item.path) ? "selected" : ""}`}
-                draggable
-                onDragStart={(e) => handleDragStart(e, item)}
+                className={`sftp-grid-row ${selected.has(item.path) ? "selected" : ""} ${isPointerDragging ? "dragging" : ""}`}
+                onMouseDown={(e) => onRowMouseDown(e, item)}
                 onClick={(e) => handleClick(e, item)}
                 onContextMenu={(e) => handleContextMenu(e, item)}
               >
