@@ -101,6 +101,12 @@ export function SftpView({ tab }: Props) {
   const handleTransfer = useCallback(
     async (items: FileEntry[], direction: "upload" | "download") => {
       for (const item of items) {
+        // 跳过符号链接 / NTFS 结点（无法可靠读取或传输）
+        if (item.isSymlink || item.kind === "symlink") {
+          toast.warn(`已跳过（符号链接/结点）`, item.name);
+          continue;
+        }
+
         const taskId = uid();
         const targetDir = direction === "upload" ? activeRemotePath : activeLocalPath;
         const destPath = joinPath(targetDir, item.name);
@@ -127,12 +133,15 @@ export function SftpView({ tab }: Props) {
             await invoke("sftp_download", { server: tab.server, remote: sourcePath, local: destPath, taskId });
           }
         } catch (e: any) {
+          const errMsg = e?.toString() || "未知错误";
           setTransfers((prev) =>
             prev.map((t) =>
-              t.id === taskId ? { ...t, status: "error", message: e.toString() } : t
+              t.id === taskId ? { ...t, status: "error", message: errMsg } : t
             )
           );
-          toast.error("传输失败", item.name);
+          // 提取关键错误信息给用户（截断过长的 Rust 错误串）
+          const shortMsg = errMsg.length > 80 ? errMsg.slice(0, 80) + "…" : errMsg;
+          toast.error(`传输失败: ${shortMsg}`, item.name);
         } finally {
           unlisten();
         }
