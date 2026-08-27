@@ -1299,140 +1299,463 @@ export function FilePanel({
   );
 }
 
-// ===== Icons =====
-// ── 通用文档底图：白底折角 + 底部类型色带 + 扩展名文字 + 可选图形 ──
-function DocPage({ accent, label, glyph }: { accent: string; label: string; glyph?: JSX.Element }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-      <path d="M3.1 1.3h7L14 5.2v9.3c0 .3-.2.5-.5.5H3.6c-.3 0-.5-.2-.5-.5V1.8c0-.3.2-.5.5-.5z" fill="#ffffff" stroke="#c2cad4" strokeWidth="0.6" />
-      <path d="M10 1.3L14 5.2h-3.5c-.3 0-.5-.2-.5-.5V1.3z" fill="#e7ecf1" stroke="#c2cad4" strokeWidth="0.35" />
-      {glyph}
-      <path d="M2.6 11h10.8V14c0 .3-.2.5-.5.5H3.1c-.3 0-.5-.2-.5-.5V11z" fill={accent} />
-      <text x="8" y="13.35" fill="#ffffff" fontSize="3.3" fontWeight="800" fontFamily="Arial, Helvetica, sans-serif" textAnchor="middle" letterSpacing="0.1">{label}</text>
-    </svg>
-  );
-}
-// ── 小图形（白色叠加在文档上方）──
-function GImage() {
-  return (<g opacity="0.92"><circle cx="10.4" cy="4.1" r="1" fill="#fff" /><path d="M4.2 9.4 6.4 6.6 8.3 8.5 9.6 7 11.8 9.6H4.2z" fill="#fff" /></g>);
-}
-function GVideo() {
-  return (<path d="M6.4 4.8 6.4 8.4 10.2 6.6z" fill="#fff" opacity="0.95" />);
-}
-function GAudio() {
-  return (<g fill="#fff" opacity="0.92"><ellipse cx="6.4" cy="7.4" rx="0.9" ry="0.75" /><ellipse cx="9.4" cy="6.9" rx="0.9" ry="0.75" /><rect x="7.1" y="4.6" width="0.5" height="2.9" /><rect x="10.1" y="4.1" width="0.5" height="2.9" /><rect x="7.1" y="4.6" width="3.5" height="0.5" /></g>);
-}
-function GBox() {
-  return (<g stroke="#fff" strokeWidth="0.55" fill="none" opacity="0.92"><rect x="5" y="4.8" width="6" height="4.4" rx="0.6" /><line x1="5" y1="6" x2="11" y2="6" /><path d="M5.6 4.8v4.4M10.4 4.8v4.4" /></g>);
-}
-function GDisc() {
-  return (<g fill="none" stroke="#fff" strokeWidth="0.6" opacity="0.92"><circle cx="8" cy="6.6" r="3" /><circle cx="8" cy="6.6" r="0.85" fill="#fff" /></g>);
-}
-function GDb() {
-  return (<g opacity="0.92"><ellipse cx="8" cy="5.2" rx="3" ry="1.1" fill="#fff" /><path d="M5 5.2v3.6c0 .6 1.34 1.1 3 1.1s3-.5 3-1.1V5.2" fill="none" stroke="#fff" strokeWidth="0.6" /><path d="M5 6.8c0 .6 1.34 1.1 3 1.1s3-.5 3-1.1" fill="none" stroke="#fff" strokeWidth="0.6" /></g>);
-}
-function GKey() {
-  return (<g stroke="#fff" strokeWidth="0.6" fill="none" opacity="0.92" strokeLinecap="round"><circle cx="6" cy="5.6" r="1.5" /><path d="M7.1 6.7 9.6 9.2M8.9 8.5l1 1M8.1 7.7l1 1" /></g>);
-}
-function GCode() {
-  return (<g stroke="#fff" strokeWidth="0.8" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.95"><path d="M6 4.8 4 6.8 6 8.8M10 4.8 12 6.8 10 8.8M8.5 4.2 7.5 9.1" /></g>);
-}
-function GSheet() {
-  return (<g stroke="#fff" strokeWidth="0.6" fill="none" opacity="0.9"><rect x="5" y="4.4" width="6" height="4.2" rx="0.4" /><line x1="5" y1="8" x2="11" y2="8" /></g>);
-}
-function GGrid() {
-  return (<g stroke="#fff" strokeWidth="0.5" fill="none" opacity="0.9"><rect x="5" y="4.2" width="6" height="4.2" rx="0.4" /><line x1="7" y1="4.2" x2="7" y2="8.4" /><line x1="9" y1="4.2" x2="9" y2="8.4" /><line x1="5" y1="5.8" x2="11" y2="5.8" /><line x1="5" y1="7" x2="11" y2="7" /></g>);
-}
-function GLines() {
-  return (<g stroke="#fff" strokeWidth="0.7" strokeLinecap="round" opacity="0.9"><line x1="5" y1="4.6" x2="11" y2="4.6" /><line x1="5" y1="6.1" x2="11" y2="6.1" /><line x1="5" y1="7.6" x2="9" y2="7.6" /></g>);
-}
-function GBook() {
-  return (<g fill="#fff" opacity="0.92"><path d="M8 4.4c-1.2-.7-2.6-.7-3.6 0v7c1-.7 2.4-.7 3.6 0z" /><path d="M8 4.4c1.2-.7 2.6-.7 3.6 0v7c-1 .7-2.4.7-3.6 0z" opacity="0.7" /></g>);
-}
-function GGear() {
-  return (<g fill="#fff" opacity="0.92"><path d="M8 3.2l.9 1.7 1.9.2-.9 1.7.9 1.7-1.9-.2L8 10.8l-.9-1.7-1.9.2.9-1.7L6.2 6.8l1.9-.2z" /></g>);
-}
-function GMd() {
-  return (<g stroke="#fff" strokeWidth="0.7" strokeLinecap="round" opacity="0.9" fill="none"><line x1="5" y1="4.6" x2="5" y2="7.6" /><line x1="6.7" y1="4.6" x2="6.7" y2="7.6" /><line x1="8.4" y1="4.6" x2="8.4" y2="7.6" /><path d="M5 8.4h6" /></g>);
-}
-function GShell() {
-  return (<g fill="#fff" opacity="0.92"><path d="M6.5 4.6 4.6 6.6 6.5 8.6V7.4h2V7H6.5z" /><rect x="8.6" y="7.4" width="1.6" height="0.7" /></g>);
-}
-function GCoffee() {
-  return (<g opacity="0.9"><path d="M5 5h4.5v2.6c0 1-1 1.6-2.2 1.6S5 8.6 5 7.6z" fill="#fff" /><path d="M9.5 5.4h1c.5 0 .8.4.8.9s-.3.9-.8.9H9.5" fill="none" stroke="#fff" strokeWidth="0.5" /><path d="M6 9.6h3" stroke="#fff" strokeWidth="0.5" /></g>);
-}
-function GGem() {
-  return (<g opacity="0.92"><path d="M6 4.6h4l1 1.6-3 3.4-3-3.4z" fill="#fff" /><path d="M6 4.6 5 6.2h6L10 4.6M5.5 6.2 8 9.6M10.5 6.2 8 9.6M6.5 6.2h3" stroke="#fff" strokeWidth="0.4" fill="none" /></g>);
-}
-function GFont() {
-  return (<path d="M8 4.4 5.4 9h1.1l.5-1.3h2l.5 1.3h1.1L8 4.4zM7.3 7.2 8 5.4l.7 1.8z" fill="#fff" opacity="0.92" />);
-}
+// ===== Icons（全幅图形风格，类似 Windows 资源管理器）=====
+// 所有图标使用 24×24 viewBox，图形填满整个区域
 
-// ── 文件夹（清爽双色）──
 function FolderIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-      <path d="M1.7 3.4c0-.4.3-.7.7-.7h3l1.1 1.1h6.1c.4 0 .7.3.7.7v6.8c0 .4-.3.7-.7.7H2.4c-.4 0-.7-.3-.7-.7V3.4z" fill="#E8A93A" />
-      <path d="M1.7 5.2h12.6v5c0 .4-.3.7-.7.7H2.4c-.4 0-.7-.3-.7-.7V5.2z" fill="#FFC857" />
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M3 6a2 2 0 012-2h4.586a1 1 0 01.707.293L11.414 6H19a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" fill="#FFC107"/>
+      <path d="M3 10h18v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8z" fill="#FFD54F"/>
+      <path d="M3 6a2 2 0 012-2h4.586a1 1 0 01.707.293L11.414 6H19a2 2 0 012 2v0H3V6z" fill="#FFA000" opacity=".35"/>
     </svg>
   );
 }
-// ── 软链接（文档 + 链接徽标）──
+
 function SymlinkIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-      <path d="M3.1 1.3h7L14 5.2v9.3c0 .3-.2.5-.5.5H3.6c-.3 0-.5-.2-.5-.5V1.8c0-.3.2-.5.5-.5z" fill="#ffffff" stroke="#c2cad4" strokeWidth="0.6" />
-      <path d="M10 1.3L14 5.2h-3.5c-.3 0-.5-.2-.5-.5V1.3z" fill="#e7ecf1" stroke="#c2cad4" strokeWidth="0.35" />
-      <circle cx="11" cy="11" r="3.1" fill="#3B82F6" />
-      <g stroke="#fff" strokeWidth="0.9" fill="none" strokeLinecap="round">
-        <path d="M10.1 11.3 11.7 9.7M11.9 10 13.5 11.6" />
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 3h9l5 5v13a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" fill="#f0f0f0" stroke="#bbb" strokeWidth="1"/>
+      <path d="M14 3l5 5h-4a1 1 0 01-1-1V3z" fill="#e0e0e0" stroke="#bbb" strokeWidth=".7"/>
+      <circle cx="17" cy="17" r="5" fill="#4A90D9"/>
+      <path d="M15 17l2-2 3 3m0-3l-3 3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    </svg>
+  );
+}
+
+// ── Word 文档：蓝色底 + 大 W ──
+function WordIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#2B579A"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#1e4278"/>
+      <text x="11" y="18" fill="#fff" fontSize="11" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">W</text>
+    </svg>
+  );
+}
+// ── Excel 表格：绿色底 + 网格/X ──
+function ExcelIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#217346"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#185a33"/>
+      <text x="11" y="18" fill="#fff" fontSize="11" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">X</text>
+    </svg>
+  );
+}
+// ── PPT 演示文稿：橙红底 + 图表 ──
+function PptIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#D24726"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#a83a1c"/>
+      <rect x="7" y="11" width="3" height="6" rx=".5" fill="#fff" opacity=".85"/>
+      <rect x="11.5" y="13" width="3" height="4" rx=".5" fill="#fff" opacity=".65"/>
+    </svg>
+  );
+}
+// ── PDF 文档：红色底 + PDF 标识 ──
+function PdfIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#E03A2F"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#b82d30"/>
+      <text x="11" y="16.5" fill="#fff" fontSize="6" fontWeight="800" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle" letterSpacing=".5">PDF</text>
+    </svg>
+  );
+}
+// ── 文本文件：灰色底 + 横线 ──
+function TextIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#78909C"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#607d8b"/>
+      <line x1="7.5" y1="12" x2="16.5" y2="12" stroke="#fff" strokeWidth="1.2" opacity=".8" strokeLinecap="round"/>
+      <line x1="7.5" y1="15" x2="14.5" y2="15" stroke="#fff" strokeWidth="1.2" opacity=".6" strokeLinecap="round"/>
+      <line x1="7.5" y1="18" x2="12" y2="18" stroke="#fff" strokeWidth="1.2" opacity=".4" strokeLinecap="round"/>
+    </svg>
+  );
+}
+// ── Markdown：深灰底 + M 符号 ──
+function MarkdownIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#333"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#222"/>
+      <text x="11" y="17.5" fill="#fff" fontSize="8" fontWeight="700" fontFamily="monospace" textAnchor="middle">MD</text>
+    </svg>
+  );
+}
+// ── 电子书：棕色底 + 书本 ──
+function BookIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#B45309"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#8b4007"/>
+      <path d="M8 10c-1.5-.8-3-.8-4 0v8c1-.8 2.5-.8 4 0s2.5.8 4 0v-8c-1.5.8-3 .8-4 0z" fill="#fff" opacity=".85"/>
+    </svg>
+  );
+}
+// ── 图片：绿色底 + 山景 ──
+function ImageIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#2BA84A"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#218838"/>
+      <circle cx="16" cy="9" r="2" fill="#fff" opacity=".9"/>
+      <path d="M6 18l3.5-4 3 3 3-3 4.5 4H6z" fill="#fff" opacity=".75"/>
+    </svg>
+  );
+}
+// ── 视频：紫色底 + 播放按钮 ──
+function VideoIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#7C4DFF"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#651fff"/>
+      <path d="M9 9v7l6-3.5L9 9z" fill="#fff" opacity=".95"/>
+    </svg>
+  );
+}
+// ── 音频：橙色底 + 波形 ──
+function AudioIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#F59E0B"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#d97706"/>
+      <g fill="#fff" opacity=".9">
+        <rect x="7" y="10" width="2" height="7" rx=".5"/><rect x="11" y="8" width="2" height="9" rx=".5"/><rect x="15" y="12" width="2" height="5" rx=".5"/>
       </g>
     </svg>
   );
 }
-
-// ── 各类文件图标（白底文档 + 类型色带 + 扩展名 + 图形）──
-function WordIcon() { return <DocPage accent="#2B579A" label="DOC" />; }
-function ExcelIcon() { return <DocPage accent="#217346" label="XLS" glyph={<GGrid />} />; }
-function PptIcon() { return <DocPage accent="#D24726" label="PPT" glyph={<GSheet />} />; }
-function PdfIcon() { return <DocPage accent="#E03A2F" label="PDF" />; }
-function TextIcon() { return <DocPage accent="#7A8794" label="TXT" glyph={<GLines />} />; }
-function MarkdownIcon() { return <DocPage accent="#2D2D2D" label="MD" glyph={<GMd />} />; }
-function BookIcon() { return <DocPage accent="#B45309" label="BOOK" glyph={<GBook />} />; }
-function ImageIcon() { return <DocPage accent="#2BA84A" label="IMG" glyph={<GImage />} />; }
-function VideoIcon() { return <DocPage accent="#7C4DFF" label="VID" glyph={<GVideo />} />; }
-function AudioIcon() { return <DocPage accent="#F59E0B" label="AUD" glyph={<GAudio />} />; }
-function ArchiveIcon() { return <DocPage accent="#C9972B" label="ZIP" glyph={<GBox />} />; }
-function DiskImageIcon() { return <DocPage accent="#5A6B7B" label="ISO" glyph={<GDisc />} />; }
-function ConfigIcon() { return <DocPage accent="#0F9D9D" label="CFG" glyph={<GGear />} />; }
-function HtmlIcon() { return <DocPage accent="#E44D26" label="HTML" glyph={<GCode />} />; }
-function CssIcon() { return <DocPage accent="#2965F1" label="CSS" glyph={<GCode />} />; }
-function WebCompIcon() { return <DocPage accent="#41B883" label="VUE" glyph={<GCode />} />; }
-function JsIcon() { return <DocPage accent="#E8A400" label="JS" />; }
-function TsIcon() { return <DocPage accent="#2D79C7" label="TS" />; }
-function PythonIcon() { return <DocPage accent="#3A76A8" label="PY" />; }
-function ShellIcon() { return <DocPage accent="#2E3138" label="SH" glyph={<GShell />} />; }
-function JavaIcon() { return <DocPage accent="#E76F00" label="JAVA" glyph={<GCoffee />} />; }
-function CppIcon() { return <DocPage accent="#00599C" label="C++" />; }
-function GoIcon() { return <DocPage accent="#00ADD8" label="GO" />; }
-function RustIcon() { return <DocPage accent="#CE412B" label="RS" glyph={<GGear />} />; }
-function RubyIcon() { return <DocPage accent="#CC342D" label="RB" glyph={<GGem />} />; }
-function PhpIcon() { return <DocPage accent="#777BB4" label="PHP" />; }
-function SqlIcon() { return <DocPage accent="#1F8A9E" label="SQL" glyph={<GDb />} />; }
-function CodeIcon() { return <DocPage accent="#5C6BC0" label="CODE" glyph={<GCode />} />; }
-function ExeIcon() { return <DocPage accent="#3A3F47" label="EXE" glyph={<GGear />} />; }
-function DatabaseIcon() { return <DocPage accent="#1F8A9E" label="DB" glyph={<GDb />} />; }
-function FontIcon() { return <DocPage accent="#8B5CF6" label="FONT" glyph={<GFont />} />; }
-function KeyIcon() { return <DocPage accent="#2E9E5B" label="KEY" glyph={<GKey />} />; }
-function BackupIcon() { return <DocPage accent="#6B7785" label="BAK" glyph={<GDisc />} />; }
-function LogIcon() { return <DocPage accent="#5A6B7B" label="LOG" glyph={<GLines />} />; }
-function FileIcon() { return <DocPage accent="#9AA5B1" label="FILE" />; }
-function SwiftIcon() { return <DocPage accent="#F05138" label="SWIFT" />; }
-function KotlinIcon() { return <DocPage accent="#A97BFF" label="KT" />; }
-function DartIcon() { return <DocPage accent="#0175C2" label="DART" />; }
-function CSharpIcon() { return <DocPage accent="#239120" label="CS" />; }
-function LuaIcon() { return <DocPage accent="#2C5AA0" label="LUA" />; }
-function RLangIcon() { return <DocPage accent="#276DC3" label="R" />; }
+// ── 压缩包：棕黄底 + 盒子 ──
+function ArchiveIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#C9972B"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#a67c20"/>
+      <rect x="7" y="11" width="10" height="7" rx="1" stroke="#fff" strokeWidth="1" fill="none" opacity=".8"/>
+      <line x1="7" y1="14.5" x2="17" y2="14.5" stroke="#fff" strokeWidth="1" opacity=".6"/>
+      <line x1="12" y1="11" x2="12" y2="18" stroke="#fff" strokeWidth="1" opacity=".6"/>
+    </svg>
+  );
+}
+// ── 磁盘镜像：灰蓝底 + 光盘 ──
+function DiskImageIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#5A6B7B"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#445566"/>
+      <circle cx="12" cy="13" r="5" stroke="#fff" strokeWidth="1" fill="none" opacity=".8"/>
+      <circle cx="12" cy="13" r="1.8" fill="#fff" opacity=".85"/>
+    </svg>
+  );
+}
+// ── 配置文件：青色底 + 齿轮 ──
+function ConfigIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#0F9D9D"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#0c7a7a"/>
+      <g fill="#fff" opacity=".9">
+        <path d="M12 8.5l1.3 2.5 2.7.4-2 1.9.5 2.7-2.5 1.3L12 18l-1.5-2.7-2.5-1.3.5-2.7-2-1.9 2.7-.4z"/>
+      </g>
+    </svg>
+  );
+}
+// ── HTML：红色底 + 代码括号 ──
+function HtmlIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#E44D26"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#c23d1b"/>
+      <path d="M8 10l-2 2 2 2M16 10l2 2-2 2M12 8l-1.5 8" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity=".9"/>
+    </svg>
+  );
+}
+// ── CSS：蓝色底 + 代码括号 ──
+function CssIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#2965F1"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#1a50da"/>
+      <path d="M8 10l-2 2 2 2M16 10l2 2-2 2M12 8l-1.5 8" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity=".9"/>
+    </svg>
+  );
+}
+// ── Vue/Svelte：绿色底 + 代码括号 ──
+function WebCompIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#41B883"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#329c69"/>
+      <path d="M8 10l-2 2 2 2M16 10l2 2-2 2M12 8l-1.5 8" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity=".9"/>
+    </svg>
+  );
+}
+// ── JS：黄色底 + JS ──
+function JsIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#E8A400"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#c98a00"/>
+      <text x="11" y="17.5" fill="#fff" fontSize="8" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">JS</text>
+    </svg>
+  );
+}
+// ── TS：蓝色底 + TS ──
+function TsIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#2D79C7"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#2261a3"/>
+      <text x="11" y="17.5" fill="#fff" fontSize="8" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">TS</text>
+    </svg>
+  );
+}
+// ── Python：蓝色底 + PY ──
+function PythonIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#3A76A8"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#2d5f87"/>
+      <text x="11" y="17.5" fill="#fff" fontSize="8" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">PY</text>
+    </svg>
+  );
+}
+// ── Shell：深灰底 + 终端 >_ ──
+function ShellIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#2E3138"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#1e2025"/>
+      <path d="M7.5 11l3 2.5-3 2.5" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity=".9"/>
+      <rect x="14" y="15" width="3" height="1.5" rx=".3" fill="#fff" opacity=".8"/>
+    </svg>
+  );
+}
+// ── Java：橙色底 + 咖啡杯 ──
+function JavaIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#E76F00"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#c45a00"/>
+      <path d="M7 10h5.5v3c0 1.2-1.2 2-2.7 2S7 14.2 7 13v-3z" fill="#fff" opacity=".85"/>
+      <path d="M12.5 10.5h1.5c.6 0 1 .5 1 1s-.4 1-1 1h-1.5" stroke="#fff" strokeWidth=".8" fill="none" opacity=".7"/>
+    </svg>
+  );
+}
+// ── C++：深蓝底 + C++ ──
+function CppIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#00599C"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#00447a"/>
+      <text x="11" y="17.5" fill="#fff" fontSize="7" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">C++</text>
+    </svg>
+  );
+}
+// ── Go：青色底 + GO ──
+function GoIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#00ADD8"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#008cb0"/>
+      <text x="11" y="17.5" fill="#fff" fontSize="8" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">GO</text>
+    </svg>
+  );
+}
+// ── Rust：锈红底 + 齿轮 ──
+function RustIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#CE412B"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#a83321"/>
+      <g fill="#fff" opacity=".9"><path d="M12 8.5l1.3 2.5 2.7.4-2 1.9.5 2.7-2.5 1.3L12 18l-1.5-2.7-2.5-1.3.5-2.7-2-1.9 2.7-.4z"/></g>
+    </svg>
+  );
+}
+// ── Ruby：红色底 + 宝石 ──
+function RubyIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#CC342D"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#a32822"/>
+      <path d="M9 9h6l1.5 2.5-3 5-3-5L9 9z" fill="#fff" opacity=".85"/>
+      <path d="M9 9 8 12h8L15 9M8.5 12 12 17.5M15.5 12 12 17.5M10 12h4" stroke="#fff" strokeWidth=".6" fill="none" opacity=".5"/>
+    </svg>
+  );
+}
+// ── PHP：紫蓝底 + PHP ──
+function PhpIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#777BB4"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#5e62a0"/>
+      <text x="11" y="17.5" fill="#fff" fontSize="8" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">PHP</text>
+    </svg>
+  );
+}
+// ── SQL：青色底 + 数据库 ──
+function SqlIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#1F8A9E"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#176d7c"/>
+      <ellipse cx="12" cy="10" rx="4.5" ry="1.8" fill="#fff" opacity=".85"/>
+      <path d="M7.5 10v4.5c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8V10" stroke="#fff" strokeWidth="1" fill="none" opacity=".7"/>
+      <path d="M7.5 12.3c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8" stroke="#fff" strokeWidth="1" fill="none" opacity=".5"/>
+    </svg>
+  );
+}
+// ── Swift：橙红底 + SWIFT ──
+function SwiftIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#F05138"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#c93f2a"/>
+      <text x="11" y="16" fill="#fff" fontSize="5.5" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">SWIFT</text>
+    </svg>
+  );
+}
+// ── Kotlin：紫色底 + KT ──
+function KotlinIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#A97BFF"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#8a5fe0"/>
+      <text x="11" y="17.5" fill="#fff" fontSize="8" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">KT</text>
+    </svg>
+  );
+}
+// ── Dart：蓝色底 + DART ──
+function DartIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#0175C2"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#015a9a"/>
+      <text x="11" y="16" fill="#fff" fontSize="5.5" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">DART</text>
+    </svg>
+  );
+}
+// ── C#：绿色底 + CS ──
+function CSharpIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#239120"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#1b7318"/>
+      <text x="11" y="17.5" fill="#fff" fontSize="8" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">CS</text>
+    </svg>
+  );
+}
+// ── Lua：蓝色底 + LUA ──
+function LuaIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#2C5AA0"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#224780"/>
+      <text x="11" y="17.5" fill="#fff" fontSize="7" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">LUA</text>
+    </svg>
+  );
+}
+// ── R 语言：蓝色底 + R ──
+function RLangIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#276DC3"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#1f569c"/>
+      <text x="11" y="17.5" fill="#fff" fontSize="10" fontWeight="700" fontFamily="Arial,Helvetica,sans-serif" textAnchor="middle">R</text>
+    </svg>
+  );
+}
+// ── 通用代码：靛蓝底 + CODE ──
+function CodeIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#5C6BC0"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#4855a0"/>
+      <path d="M8 10l-2 2 2 2M16 10l2 2-2 2M12 8l-1.5 8" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity=".9"/>
+    </svg>
+  );
+}
+// ── 可执行：深灰底 + 齿轮 ──
+function ExeIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#3A3F47"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#2a2e34"/>
+      <g fill="#fff" opacity=".9"><path d="M12 8.5l1.3 2.5 2.7.4-2 1.9.5 2.7-2.5 1.3L12 18l-1.5-2.7-2.5-1.3.5-2.7-2-1.9 2.7-.4z"/></g>
+    </svg>
+  );
+}
+// ── 数据库：青色底 + 圆柱 ──
+function DatabaseIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#1F8A9E"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#176d7c"/>
+      <ellipse cx="12" cy="10" rx="4.5" ry="1.8" fill="#fff" opacity=".85"/>
+      <path d="M7.5 10v4.5c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8V10" stroke="#fff" strokeWidth="1" fill="none" opacity=".7"/>
+      <path d="M7.5 12.3c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8" stroke="#fff" strokeWidth="1" fill="none" opacity=".5"/>
+    </svg>
+  );
+}
+// ── 字体：紫色底 + A ──
+function FontIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#8B5CF6"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#7144cf"/>
+      <path d="M12 8 9 17h2l.8-2.2h3.4L16 17h2L15 8zm-.8 5.5L12 11l.8 2.5z" fill="#fff" opacity=".9"/>
+    </svg>
+  );
+}
+// ── 密钥/证书：绿色底 + 钥匙 ──
+function KeyIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#2E9E5B"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#247d49"/>
+      <circle cx="9" cy="11" r="2.5" stroke="#fff" strokeWidth="1.2" fill="none" opacity=".85"/>
+      <path d="M11 12.5 15 17M14 15.5l1.5 1.5M13 14.5l1.5 1.5" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" fill="none" opacity=".8"/>
+    </svg>
+  );
+}
+// ── 备份：灰色底 + 光盘 ──
+function BackupIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#6B7785"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#555f6a"/>
+      <circle cx="12" cy="13" r="5" stroke="#fff" strokeWidth="1" fill="none" opacity=".8"/>
+      <circle cx="12" cy="13" r="1.8" fill="#fff" opacity=".85"/>
+    </svg>
+  );
+}
+// ── 日志：灰蓝底 + 横线 ──
+function LogIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#5A6B7B"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#445566"/>
+      <line x1="7.5" y1="12" x2="16.5" y2="12" stroke="#fff" strokeWidth="1.2" opacity=".8" strokeLinecap="round"/>
+      <line x1="7.5" y1="15" x2="14.5" y2="15" stroke="#fff" strokeWidth="1.2" opacity=".6" strokeLinecap="round"/>
+      <line x1="7.5" y1="18" x2="12" y2="18" stroke="#fff" strokeWidth="1.2" opacity=".4" strokeLinecap="round"/>
+    </svg>
+  );
+}
+// ── 默认文件：灰色底 ──
+function FileIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M5 2h9l6 6v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" fill="#9AA5B1"/>
+      <path d="M14 2l6 6h-5a1 1 0 01-1-1V2z" fill="#828c96"/>
+      <line x1="7.5" y1="12" x2="16.5" y2="12" stroke="#fff" strokeWidth="1.2" opacity=".5" strokeLinecap="round"/>
+      <line x1="7.5" y1="15.5" x2="13" y2="15.5" stroke="#fff" strokeWidth="1.2" opacity=".3" strokeLinecap="round"/>
+    </svg>
+  );
+}
 
 // ── 按扩展名映射到图标 ──
 function getFileTypeIcon(name: string) {
