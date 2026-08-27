@@ -533,17 +533,17 @@
 
 .sftp-file-icon {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* SVG 图标本身保持 16×16，在 20×20 容器内居中显示，避免边缘裁切 */
+/* SVG 图标保持 24×24，在 26×26 容器内居中显示 */
 .sftp-file-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
 }
 
 .sftp-file-icon.dir {

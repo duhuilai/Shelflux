@@ -1303,7 +1303,7 @@ export function FilePanel({
 // ── 通用文档底图：白底折角 + 底部类型色带 + 扩展名文字 + 可选图形 ──
 function DocPage({ accent, label, glyph }: { accent: string; label: string; glyph?: JSX.Element }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
       <path d="M3.1 1.3h7L14 5.2v9.3c0 .3-.2.5-.5.5H3.6c-.3 0-.5-.2-.5-.5V1.8c0-.3.2-.5.5-.5z" fill="#ffffff" stroke="#c2cad4" strokeWidth="0.6" />
       <path d="M10 1.3L14 5.2h-3.5c-.3 0-.5-.2-.5-.5V1.3z" fill="#e7ecf1" stroke="#c2cad4" strokeWidth="0.35" />
       {glyph}
@@ -1371,7 +1371,7 @@ function GFont() {
 // ── 文件夹（清爽双色）──
 function FolderIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
       <path d="M1.7 3.4c0-.4.3-.7.7-.7h3l1.1 1.1h6.1c.4 0 .7.3.7.7v6.8c0 .4-.3.7-.7.7H2.4c-.4 0-.7-.3-.7-.7V3.4z" fill="#E8A93A" />
       <path d="M1.7 5.2h12.6v5c0 .4-.3.7-.7.7H2.4c-.4 0-.7-.3-.7-.7V5.2z" fill="#FFC857" />
     </svg>
@@ -1380,7 +1380,7 @@ function FolderIcon() {
 // ── 软链接（文档 + 链接徽标）──
 function SymlinkIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
       <path d="M3.1 1.3h7L14 5.2v9.3c0 .3-.2.5-.5.5H3.6c-.3 0-.5-.2-.5-.5V1.8c0-.3.2-.5.5-.5z" fill="#ffffff" stroke="#c2cad4" strokeWidth="0.6" />
       <path d="M10 1.3L14 5.2h-3.5c-.3 0-.5-.2-.5-.5V1.3z" fill="#e7ecf1" stroke="#c2cad4" strokeWidth="0.35" />
       <circle cx="11" cy="11" r="3.1" fill="#3B82F6" />
