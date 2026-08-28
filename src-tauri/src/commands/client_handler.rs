@@ -257,8 +257,11 @@ async fn connect_session_inner(
     forwarded_tx: Option<mpsc::UnboundedSender<ForwardedChannel>>,
 ) -> Result<client::Handle<ClientHandler>, AppError> {
     let config = Arc::new(client::Config {
-        inactivity_timeout: Some(Duration::from_secs(30)),
-        keepalive_interval: Some(Duration::from_secs(15)),
+        // 不设空闲超时：连接应保持到用户主动关闭或网络真正中断
+        // 之前 30s inactivity_timeout 是频繁 "session closed" 的根因
+        inactivity_timeout: None,
+        // 每 30s 发一次 SSH keepalive，防止中间设备（NAT/防火墙）丢弃空闲连接
+        keepalive_interval: Some(Duration::from_secs(30)),
         ..Default::default()
     });
 

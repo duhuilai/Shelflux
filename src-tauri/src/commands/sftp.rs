@@ -581,21 +581,44 @@ pub async fn sftp_download(
     local: String,
     task_id: String,
 ) -> Result<(), AppError> {
-    let sftp = get_sftp(&app, &server).await?;
+    // 传输失败且原因为 session closed 时，剔除失效会话后自动重试一次
+    let mut last_err = None;
+    for attempt in 0..2 {
+        let sftp = get_sftp(&app, &server).await?;
 
-    // 检查远端路径是否为目录
-    let is_dir = sftp.lock().await
-        .metadata(remote.as_str())
-        .await
-        .map(|m| m.is_dir())
-        .unwrap_or(false);
+        // 检查远端路径是否为目录
+        let is_dir = sftp.lock().await
+            .metadata(remote.as_str())
+            .await
+            .map(|m| m.is_dir())
+            .unwrap_or(false);
 
-    if is_dir {
-        sftp_download_dir(&app, &sftp, &remote, &local, &task_id).await?;
-    } else {
-        sftp_download_file(&app, &sftp, &remote, &local, &task_id).await?;
+        let result = if is_dir {
+            sftp_download_dir(&app, &sftp, &remote, &local, &task_id).await
+        } else {
+            sftp_download_file(&app, &sftp, &remote, &local, &task_id).await
+        };
+        match result {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                let err_msg = e.to_string();
+                let is_session_err = err_msg.contains("session closed")
+                    || err_msg.contains("connection closed")
+                    || err_msg.contains("broken pipe")
+                    || err_msg.contains("EOF")
+                    || err_msg.contains("reset by peer");
+                if is_session_err && attempt == 0 {
+                    eprintln!("[sftp] download session lost, retrying after eviction...");
+                    evict_sftp_session(&app, &server).await;
+                    evict_ssh_handle(&app, &server).await;
+                    last_err = Some(e);
+                    continue;
+                }
+                return Err(e);
+            }
+        }
     }
-    Ok(())
+    Err(last_err.unwrap_or_else(|| AppError::Sftp("下载重试失败".into())))
 }
 
 /// 下载单个远端文件到本地
@@ -731,14 +754,36 @@ pub async fn sftp_upload(
         .await
         .map_err(AppError::Io)?;
 
-    let sftp = get_sftp(&app, &server).await?;
-
-    if local_meta.is_dir() {
-        sftp_upload_dir(&app, &sftp, &local, &remote, &task_id).await?;
-    } else {
-        sftp_upload_file(&app, &sftp, &local, &remote, &task_id).await?;
+    // 传输失败且原因为 session closed 时，剔除失效会话后自动重试一次
+    let mut last_err = None;
+    for attempt in 0..2 {
+        let sftp = get_sftp(&app, &server).await?;
+        let result = if local_meta.is_dir() {
+            sftp_upload_dir(&app, &sftp, &local, &remote, &task_id).await
+        } else {
+            sftp_upload_file(&app, &sftp, &local, &remote, &task_id).await
+        };
+        match result {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                let err_msg = e.to_string();
+                let is_session_err = err_msg.contains("session closed")
+                    || err_msg.contains("connection closed")
+                    || err_msg.contains("broken pipe")
+                    || err_msg.contains("EOF")
+                    || err_msg.contains("reset by peer");
+                if is_session_err && attempt == 0 {
+                    eprintln!("[sftp] upload session lost, retrying after eviction...");
+                    evict_sftp_session(&app, &server).await;
+                    evict_ssh_handle(&app, &server).await;
+                    last_err = Some(e);
+                    continue;
+                }
+                return Err(e);
+            }
+        }
     }
-    Ok(())
+    Err(last_err.unwrap_or_else(|| AppError::Sftp("上传重试失败".into())))
 }
 
 /// 上传单个本地文件到远端
