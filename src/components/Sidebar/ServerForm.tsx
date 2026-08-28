@@ -125,7 +125,7 @@ export function ServerForm({ onClose }: Props) {
   };
 
   return (
-    <div className="modal-mask" onClick={onClose}>
+    <div className="modal-mask">
       <form className="modal server-form-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit} style={{ width: 520 }}>
         <div className="modal-header">
           <span>{isEdit ? "编辑服务器" : "新建服务器"}</span>
