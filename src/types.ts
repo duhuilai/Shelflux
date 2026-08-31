@@ -119,6 +119,24 @@ export interface TransferProgress {
   message?: string;
 }
 
+/** 传输队列中的单项（同时作为全局 store 的数据结构，跨 SFTP 标签页共享） */
+export interface TransferItem {
+  id: string;
+  name: string;
+  direction: "upload" | "download";
+  transferred: number;
+  total: number;
+  speed: number;
+  status: "running" | "done" | "error" | "cancelled";
+  message?: string;
+  /** 续传用：源路径（上传=本地路径，下载=远端路径） */
+  sourcePath?: string;
+  /** 续传用：目标路径（上传=远端路径，下载=本地路径） */
+  destPath?: string;
+  /** 传输失败且目标已存在部分数据时允许断点续传 */
+  canResume?: boolean;
+}
+
 export type TabKind = "sftp" | "ssh" | "telnet" | "rlogin";
 
 export interface Tab {
@@ -146,6 +164,10 @@ export interface AppSettings {
   defaultApps: Record<string, string>; // 后缀 -> 应用路径
   transfers: {
     confirmOverwrite: boolean;
+    /** 上传时保留本地文件的修改时间（mtime） */
+    preserveTimestamps: boolean;
+    /** 同时进行的传输任务数 */
+    concurrency: number;
   };
 }
 
@@ -165,5 +187,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   defaultApps: {},
   transfers: {
     confirmOverwrite: true,
+    preserveTimestamps: true,
+    concurrency: 3,
   },
 };

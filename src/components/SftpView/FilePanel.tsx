@@ -1,5 +1,5 @@
 // 文件列表面板（左侧或右侧共用）
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { FileEntry, Server } from "../../types";
@@ -32,13 +32,12 @@ const clamp = (v: number, lo: number, hi: number) =>
 /** 目录路径归一化：统一斜杠、去掉结尾分隔符，便于跨端比较 */
 const normDir = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "");
 
-/** 记录当前获得焦点的面板侧（用于决定 Ctrl+C/V 作用于哪个面板） */
-let activeSide: "local" | "remote" | null = null;
+/** Unix 权限位 → 八进制字符串（如 755）；无权限信息时显示 — */
+const permOctal = (p?: number) =>
+  p == null ? "—" : (p & 0o777).toString(8).padStart(3, "0");
 
-/** 外部（如文件夹页签栏）主动声明焦点侧，保证快捷键路由正确 */
-export function focusSide(side: "local" | "remote") {
-  activeSide = side;
-}
+/** 记录当前获得焦点的面板实例 id（按实例而非全局 side，避免多 SFTP 标签页串扰） */
+let focusedPanelId: string | null = null;
 
 export function FilePanel({
   title,
@@ -75,8 +74,11 @@ export function FilePanel({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   // 打开方式子菜单用的应用列表（右键文件时预加载）
   const [openWithApps, setOpenWithApps] = useState<Array<{ name: string; path: string }>>([]);
-  const [openWithFilePath, setOpenWithFilePath] = useState<string | null>(null);
   const dragCounter = useRef(0);
+  // 本面板实例 id（用于焦点路由，避免跨标签页串扰）
+  const panelId = useId();
+  // 内联搜索/过滤（P2）
+  const [filter, setFilter] = useState("");
 
   // server 用 ref 持有，保证下面的 loadEntries 只依赖稳定的 side，
   // 不随 server 对象引用变化而频繁重建（否则会触发目录反复重新拉取 → 页面闪烁）
@@ -256,7 +258,7 @@ export function FilePanel({
       }
       const st = useUiStore.getState();
       if (st.confirm.open || st.prompt.open || st.overwrite.open) return;
-      if (activeSide !== side) return;
+      if (focusedPanelId !== panelId) return;
 
       const key = e.key.toLowerCase();
       // Delete / Backspace：批量删除选中项
@@ -270,6 +272,20 @@ export function FilePanel({
       // 以下需要 Ctrl/Meta
       if (!(e.ctrlKey || e.metaKey)) return;
 
+      if (key === "a") {
+        // Ctrl+A 全选；Ctrl+Shift+A 反选
+        e.preventDefault();
+        if (e.shiftKey) {
+          const next = new Set<string>();
+          for (const en of entries) {
+            if (!selected.has(en.path)) next.add(en.path);
+          }
+          setSelected(next);
+        } else {
+          setSelected(new Set(entries.map((en) => en.path)));
+        }
+        return;
+      }
       if (key === "c") {
         if (selected.size === 0) return;
         if (copySelection()) e.preventDefault();
@@ -525,50 +541,86 @@ export function FilePanel({
     }
 
     // 2. 外部拖动：从系统文件管理器拖入文件/文件夹
-    // 使用 dataTransfer.items 以正确处理文件夹（webkitGetAsEntry）
-    const items: FileEntry[] = [];
-    const collectEntries = async (entry: FileSystemEntry) => {
-      if (entry.isFile) {
-        const file = await new Promise<File>((resolve, reject) =>
-          (entry as FileSystemFileEntry).file(resolve, reject)
-        );
-        items.push({
-          name: file.name,
-          path: file.webkitRelativePath || file.name,
-          kind: "file",
-          size: file.size,
-          isSymlink: false,
-        });
-      } else if (entry.isDirectory) {
-        const dirReader = (entry as FileSystemDirectoryEntry).createReader();
-        const readBatch = (): Promise<void> =>
-          new Promise((resolve) =>
-            dirReader.readEntries(async (entries) => {
-              if (entries.length === 0) {
-                resolve();
-                return;
-              }
-              await Promise.all(entries.map(collectEntries));
-              resolve();
-            })
-          );
-        await readBatch();
-      }
-    };
-
+    // 使用 dataTransfer.items + webkitGetAsEntry 以正确处理文件夹结构。
+    // 方向由所在面板 side 决定（修复 B1）：本地面板 = 写入本地目录；远端面板 = 上传到服务器。
     const entries = Array.from(e.dataTransfer.items)
       .map((item) => item.webkitGetAsEntry())
       .filter(Boolean) as FileSystemEntry[];
-
     if (entries.length === 0) return;
 
+    // 递归收集所有文件并记录相对路径
+    const files: { rel: string; file: File }[] = [];
+    const walk = async (entry: FileSystemEntry, prefix: string) => {
+      if (entry.isFile) {
+        const f = await new Promise<File>((resolve, reject) =>
+          (entry as FileSystemFileEntry).file(resolve, reject)
+        );
+        files.push({ rel: prefix ? `${prefix}/${f.name}` : f.name, file: f });
+      } else if (entry.isDirectory) {
+        const reader = (entry as FileSystemDirectoryEntry).createReader();
+        const readBatch = () =>
+          new Promise<FileSystemEntry[]>((resolve) =>
+            reader.readEntries((es) => resolve(es))
+          );
+        let batch = await readBatch();
+        while (batch.length > 0) {
+          for (const ch of batch) {
+            await walk(ch, prefix ? `${prefix}/${entry.name}` : entry.name);
+          }
+          batch = await readBatch();
+        }
+      }
+    };
     for (const entry of entries) {
-      await collectEntries(entry);
+      await walk(entry, "");
+    }
+    if (files.length === 0) return;
+
+    if (side === "local") {
+      // OS → 本地面板：把字节直接写入当前目录（含子目录结构）
+      for (const { rel, file } of files) {
+        const dest = joinPath(currentPath, rel);
+        const buf = new Uint8Array(await file.arrayBuffer());
+        try {
+          await invoke("local_write_file", { path: dest, data: Array.from(buf) });
+        } catch (err: any) {
+          toast.error("写入失败", err.toString());
+        }
+      }
+      toast.success("已放入本地", `${files.length} 项`);
+      await load(currentPath);
+      return;
     }
 
-    if (items.length > 0) {
-      onTransfer(items);
+    // OS → 远端面板：先写临时文件，再 sftp_upload（保留 mtime），最后清理临时文件
+    const tmpBase = joinPath(await invoke<string>("local_home"), ".shelflux-dnd");
+    let okCount = 0;
+    for (const { rel, file } of files) {
+      const tmp = joinPath(tmpBase, rel);
+      const remoteDest = joinPath(currentPath, rel);
+      const buf = new Uint8Array(await file.arrayBuffer());
+      try {
+        await invoke("local_write_file", { path: tmp, data: Array.from(buf) });
+        await invoke("sftp_upload", {
+          server,
+          local: tmp,
+          remote: remoteDest,
+          taskId: uid(),
+          offset: null,
+          preserveMtime: settings.transfers.preserveTimestamps,
+        });
+        await invoke("local_remove", { path: tmp });
+        okCount += 1;
+      } catch (err: any) {
+        toast.error("上传失败", err.toString());
+        try {
+          await invoke("local_remove", { path: tmp });
+        } catch {
+          /* ignore */
+        }
+      }
     }
+    if (okCount > 0) toast.success("已上传", `${okCount} 项`);
   };
 
   // 右键菜单
@@ -585,7 +637,6 @@ export function FilePanel({
       } catch {
         setOpenWithApps([]);
       }
-      setOpenWithFilePath(null);  // 远端文件还没下载
     }
   };
 
@@ -625,6 +676,73 @@ export function FilePanel({
   };
 
   const refresh = () => load(currentPath);
+
+  // 修改远端文件/目录权限（chmod，P1）
+  const changePermissions = async (item: FileEntry) => {
+    if (side !== "remote") {
+      toast.info("本地不支持", "本地（Windows）暂不支持修改 Unix 权限，请在远端文件上使用");
+      return;
+    }
+    const cur = item.permissions != null ? (item.permissions & 0o777).toString(8) : "";
+    const input = await askPrompt({
+      title: "修改权限",
+      message: `输入八进制权限（如 755 / 644），应用于 "${item.name}"`,
+      defaultValue: cur,
+    });
+    if (input == null) return;
+    const mode = parseInt(input.trim(), 8);
+    if (Number.isNaN(mode) || mode < 0 || mode > 0o7777) {
+      toast.error("权限格式错误", "应为 0-7777 的八进制数");
+      return;
+    }
+    try {
+      await invoke("sftp_chmod", { server, path: item.path, mode });
+      await load(currentPath);
+      toast.success("已更新权限", `${(mode & 0o777).toString(8)} ${item.name}`);
+    } catch (e: any) {
+      toast.error("修改权限失败", e.toString());
+    }
+  };
+
+  // 创建远端符号链接：link_path 指向 target（P1）
+  const createSymlink = async () => {
+    if (side !== "remote") {
+      toast.info("仅远端支持", "符号链接创建目前仅支持远端（Unix）服务器");
+      return;
+    }
+    const linkName = await askPrompt({
+      title: "创建符号链接",
+      message: "链接名称（将创建在当前目录）",
+      placeholder: "link",
+    });
+    if (!linkName) return;
+    const target = await askPrompt({
+      title: "创建符号链接",
+      message: `链接 "${linkName.trim()}" 指向的目标路径`,
+      placeholder: "/path/to/target",
+    });
+    if (!target) return;
+    const linkPath = joinPath(currentPath, linkName.trim());
+    try {
+      await invoke("sftp_symlink", { server, target: target.trim(), linkPath });
+      await load(currentPath);
+      toast.success("已创建符号链接", linkName.trim());
+    } catch (e: any) {
+      toast.error("创建符号链接失败", e.toString());
+    }
+  };
+
+  // 读取符号链接目标并复制到剪贴板
+  const copyLinkTarget = async (item: FileEntry) => {
+    if (side !== "remote") return;
+    try {
+      const target = await invoke<string>("sftp_readlink", { server, path: item.path });
+      await navigator.clipboard.writeText(target).catch(() => {});
+      toast.success("链接目标已复制", target);
+    } catch (e: any) {
+      toast.error("读取链接失败", e.toString());
+    }
+  };
 
   const renameItem = async (item: FileEntry) => {
     const newName = await askPrompt({ title: "重命名", message: "请输入新名称", defaultValue: item.name });
@@ -818,6 +936,7 @@ export function FilePanel({
       return [
         { label: "新建文件夹", icon: <FolderPlusIcon />, onClick: newFolder },
         { label: "新建文件", icon: <FilePlusIcon />, onClick: newFile },
+        { label: "创建符号链接...", icon: <LinkIcon />, onClick: createSymlink },
         { divider: true },
         { label: "复制当前路径", icon: <LinkIcon />, onClick: () => copyUrl({ name: currentPath, path: currentPath, kind: "dir", size: 0, isSymlink: false }) },
         { divider: true },
@@ -835,11 +954,13 @@ export function FilePanel({
         { label: "复制路径", icon: <LinkIcon />, onClick: () => copyUrl(item) },
         { divider: true },
         { label: "重命名", icon: <EditIcon />, onClick: () => renameItem(item) },
+        { label: "修改权限...", icon: <EditIcon />, onClick: () => changePermissions(item) },
         { divider: true },
         { label: "粘贴", icon: <PasteIcon />, onClick: () => void pasteItems(), disabled: !canPaste },
         { divider: true },
         { label: "新建文件夹", icon: <FolderPlusIcon />, onClick: newFolder },
         { label: "新建文件", icon: <FilePlusIcon />, onClick: newFile },
+        { label: "创建符号链接...", icon: <LinkIcon />, onClick: createSymlink },
         { divider: true },
         { label: "刷新", icon: <RefreshIcon />, onClick: refresh },
         { divider: true },
@@ -848,9 +969,7 @@ export function FilePanel({
     }
     // 文件 —— 构建"打开方式"子菜单
     const ext = extOf(item.name);
-    const filePath = side === "local"
-      ? item.path
-      : openWithFilePath;  // 远端文件：下载后的临时路径（prepareOpenWith 已设置）
+    const filePath = side === "local" ? item.path : null; // 远端文件需先下载，openWith 内部处理
     const defaultAppPath = settings.defaultApps[ext] || "";
 
     // 在列表中模糊匹配默认应用（兼容旧格式：可能存的是文件名而非完整路径）
@@ -990,13 +1109,18 @@ export function FilePanel({
       { divider: true },
       { label: "传输到对面", icon: <TransferIcon />, onClick: () => onTransfer([item]) },
       { label: "重命名", icon: <EditIcon />, onClick: () => renameItem(item) },
+      { label: "修改权限...", icon: <EditIcon />, onClick: () => changePermissions(item) },
       { divider: true },
       { label: "复制", icon: <CopyIcon />, onClick: () => { setSelected(new Set([item.path])); copySelection(); } },
       { label: "复制路径", icon: <LinkIcon />, onClick: () => copyUrl(item) },
       { label: "复制为", icon: <CopyIcon />, onClick: () => copyFile(item) },
+      ...(item.isSymlink
+        ? [{ label: "复制链接目标", icon: <LinkIcon />, onClick: () => copyLinkTarget(item) } as ContextMenuItem]
+        : []),
       { divider: true },
       { label: "粘贴", icon: <PasteIcon />, onClick: () => void pasteItems(), disabled: !canPaste },
       { divider: true },
+      { label: "创建符号链接...", icon: <LinkIcon />, onClick: createSymlink },
       { label: "删除", icon: <TrashIcon />, danger: true, onClick: () => deleteItem(item) },
     ];
   };
@@ -1066,6 +1190,11 @@ export function FilePanel({
     return sortDir === "asc" ? cmp : -cmp;
   });
 
+  // 搜索过滤后的可见列表
+  const visibleEntries = filter.trim()
+    ? sortedEntries.filter((e) => e.name.toLowerCase().includes(filter.trim().toLowerCase()))
+    : sortedEntries;
+
   const startResize = (e: React.MouseEvent, colIndex: number) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1119,7 +1248,7 @@ export function FilePanel({
     <div
       className={`sftp-panel ${dragOver ? "dragover" : ""}`}
       onMouseDown={() => {
-        activeSide = side;
+        focusedPanelId = panelId;
       }}
       onDragOver={onDragOver}
       onDragEnter={onDragEnter}
@@ -1129,6 +1258,14 @@ export function FilePanel({
     >
       <div className="sftp-panel-header">
         <span className={`sftp-panel-label ${labelClass}`}>{title}</span>
+        <input
+          className="sftp-search-input"
+          type="text"
+          placeholder="搜索"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
         <span style={{ flex: 1 }} />
         <button
           className="btn btn-ghost btn-icon tooltip"
@@ -1218,10 +1355,13 @@ export function FilePanel({
                 类型
                 <span className={`sort-arrow ${sortKey === "type" ? (sortDir === "asc" ? "up" : "down") : ""}`}>▲</span>
               </div>
+              <div className="sftp-grid-cell sftp-grid-head permissions">
+                权限
+              </div>
             </div>
 
             {/* 数据行 */}
-            {sortedEntries.map((item) => (
+            {visibleEntries.map((item) => (
               <div
                 key={item.path}
                 className={`sftp-grid-row ${selected.has(item.path) ? "selected" : ""} ${isPointerDragging ? "dragging" : ""}`}
@@ -1277,6 +1417,9 @@ export function FilePanel({
                 >
                   {item.kind === "dir" ? "文件夹" : item.kind === "symlink" ? "链接" : extOf(item.name).toUpperCase() || "—"}
                 </div>
+                <div className="sftp-grid-cell permissions">
+                  {permOctal(item.permissions)}
+                </div>
               </div>
             ))}
           </div>
@@ -1291,7 +1434,6 @@ export function FilePanel({
           onClose={() => {
             setContextMenu(null);
             setOpenWithApps([]);
-            setOpenWithFilePath(null);
           }}
         />
       )}

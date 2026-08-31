@@ -118,6 +118,20 @@ pub async fn local_create_file(path: String) -> Result<(), AppError> {
     .map_err(|e| AppError::Other(format!("join error: {e}")))?
 }
 
+/// 将字节写入本地文件（供从系统资源管理器拖入本地面板时使用，浏览器不暴露真实路径）。
+#[tauri::command]
+pub async fn local_write_file(path: String, data: Vec<u8>) -> Result<(), AppError> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), AppError> {
+        if let Some(parent) = Path::new(&path).parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&path, &data)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join error: {e}")))?
+}
+
 #[tauri::command]
 pub async fn local_remove(path: String) -> Result<(), AppError> {
     tauri::async_runtime::spawn_blocking(move || -> Result<(), AppError> {

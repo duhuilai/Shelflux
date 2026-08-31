@@ -2,13 +2,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { Tab, FileEntry, TransferProgress } from "../../types";
+import type { Tab, FileEntry, TransferProgress, TransferItem } from "../../types";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useUiStore } from "../../stores/uiStore";
+import { useTransferStore } from "../../stores/transferStore";
 import { toast } from "../../stores/toastStore";
 import { joinPath, basename, uid } from "../../utils/format";
-import { FilePanel, focusSide } from "./FilePanel";
-import { TransferList, type TransferItem } from "./TransferList";
+import { FilePanel } from "./FilePanel";
+import { TransferList } from "./TransferList";
 import "./SftpView.css";
 
 interface FolderTab {
@@ -37,7 +38,12 @@ export function SftpView({ tab }: Props) {
   ]);
   const [activeRemoteTabId, setActiveRemoteTabId] = useState<string>(() => remoteTabs[0].id);
 
-  const [transfers, setTransfers] = useState<TransferItem[]>([]);
+  // 传输队列来自全局 store（跨 SFTP 标签页共享，避免卸载后幽灵传输）
+  const transfers = useTransferStore((s) => s.transfers);
+  const transferAdd = useTransferStore((s) => s.add);
+  const transferUpdate = useTransferStore((s) => s.update);
+  const transferRemove = useTransferStore((s) => s.remove);
+  const transferClear = useTransferStore((s) => s.clear);
 
   const activeLocalPath = localTabs.find((t) => t.id === activeLocalTabId)?.path || "";
   const activeRemotePath = remoteTabs.find((t) => t.id === activeRemoteTabId)?.path || "/";
@@ -59,95 +65,138 @@ export function SftpView({ tab }: Props) {
 
   const runningCount = transfers.filter((t) => t.status === "running").length;
 
-  // 监听传输进度
-  useEffect(() => {
-    const unlisteners: UnlistenFn[] = [];
-    return () => {
-      unlisteners.forEach((u) => u());
-    };
-  }, []);
-
-  // 单个传输任务进度
-  const trackTransfer = useCallback(async (taskId: string) => {
-    const unlisten = await listen<TransferProgress>(
-      `transfer-progress-${taskId}`,
-      (event) => {
-        const p = event.payload;
-        setTransfers((prev) =>
-          prev.map((t) =>
-            t.id !== taskId
-              ? t
-              : {
-                  ...t,
-                  transferred: p.transferred,
-                  total: p.total,
-                  speed: p.speed,
-                  status: p.status as any,
-                  message: p.message || t.message,
-                }
-          )
-        );
-        if (p.status === "done" || p.status === "error") {
-          setTimeout(() => {
-            setTransfers((prev) => prev.filter((t) => t.id !== taskId));
-          }, 5000);
-        }
-      }
-    );
-    return unlisten;
-  }, []);
-
-  // 传输文件（目标目录取当前激活页签路径）
-  const handleTransfer = useCallback(
-    async (items: FileEntry[], direction: "upload" | "download") => {
-      for (const item of items) {
-        // 跳过符号链接 / NTFS 结点（无法可靠读取或传输）
-        if (item.isSymlink || item.kind === "symlink") {
-          toast.warn(`已跳过（符号链接/结点）`, item.name);
-          continue;
-        }
-
-        const taskId = uid();
-        const targetDir = direction === "upload" ? activeRemotePath : activeLocalPath;
-        const destPath = joinPath(targetDir, item.name);
-        const sourcePath = item.path;
-
-        const transfer: TransferItem = {
-          id: taskId,
-          name: basename(direction === "upload" ? sourcePath : destPath),
-          direction,
-          transferred: 0,
-          total: item.size || 0,
-          speed: 0,
-          status: "running",
-          message: direction === "upload" ? `上传到 ${destPath}` : `下载到 ${destPath}`,
-        };
-        setTransfers((prev) => [...prev, transfer]);
-
-        const unlisten = await trackTransfer(taskId);
-
-        try {
-          if (direction === "upload") {
-            await invoke("sftp_upload", { server: tab.server, local: sourcePath, remote: destPath, taskId });
-          } else {
-            await invoke("sftp_download", { server: tab.server, remote: sourcePath, local: destPath, taskId });
+  // 单个传输任务进度（写入全局 store）
+  const trackTransfer = useCallback(
+    async (taskId: string) => {
+      const unlisten = await listen<TransferProgress>(
+        `transfer-progress-${taskId}`,
+        (event) => {
+          const p = event.payload;
+          transferUpdate(taskId, {
+            transferred: p.transferred,
+            total: p.total,
+            speed: p.speed,
+            status: p.status as TransferItem["status"],
+            message: p.message || undefined,
+          });
+          if (p.status === "done") {
+            // 完成后稍作停留再移除（保留绿色进度条让用户看到结果）
+            setTimeout(() => transferRemove(taskId), 5000);
+          } else if (p.status === "error") {
+            // 失败项保留在队列中，供用户点"续传"
+            transferUpdate(taskId, { canResume: false });
           }
-        } catch (e: any) {
-          const errMsg = e?.toString() || "未知错误";
-          setTransfers((prev) =>
-            prev.map((t) =>
-              t.id === taskId ? { ...t, status: "error", message: errMsg } : t
-            )
-          );
-          // 提取关键错误信息给用户（截断过长的 Rust 错误串）
-          const shortMsg = errMsg.length > 80 ? errMsg.slice(0, 80) + "…" : errMsg;
-          toast.error(`传输失败: ${shortMsg}`, item.name);
-        } finally {
-          unlisten();
         }
+      );
+      return unlisten;
+    },
+    [transferUpdate, transferRemove]
+  );
+
+  // 计算断点续传偏移：取目标端已存在文件的大小
+  const computeResumeOffset = useCallback(
+    async (direction: "upload" | "download", sourcePath: string, destPath: string): Promise<number> => {
+      let existing = 0;
+      try {
+        if (direction === "upload") {
+          const meta = await invoke<{ size?: number } | null>("sftp_stat", { server: tab.server, path: destPath });
+          existing = meta?.size ?? 0;
+        } else {
+          const meta = await invoke<{ size?: number } | null>("local_stat", { path: destPath });
+          existing = meta?.size ?? 0;
+        }
+      } catch {
+        existing = 0;
+      }
+      return existing;
+    },
+    [tab.server]
+  );
+
+  // 传输单个文件（目标目录取当前激活页签路径）
+  // offset>0 时断点续传：从目标已存在大小处继续
+  const transferOne = useCallback(
+    async (item: FileEntry, direction: "upload" | "download", offset = 0) => {
+      // 跳过符号链接 / NTFS 结点（无法可靠读取或传输）
+      if (item.isSymlink || item.kind === "symlink") {
+        toast.warn(`已跳过（符号链接/结点）`, item.name);
+        return;
+      }
+
+      const taskId = uid();
+      const targetDir = direction === "upload" ? activeRemotePath : activeLocalPath;
+      const destPath = joinPath(targetDir, item.name);
+      const sourcePath = item.path;
+
+      const transfer: TransferItem = {
+        id: taskId,
+        name: basename(direction === "upload" ? sourcePath : destPath),
+        direction,
+        transferred: offset,
+        total: item.size || 0,
+        speed: 0,
+        status: "running",
+        message: direction === "upload" ? `上传到 ${destPath}` : `下载到 ${destPath}`,
+        sourcePath,
+        destPath,
+      };
+      transferAdd(transfer);
+
+      const unlisten = await trackTransfer(taskId);
+
+      try {
+        if (direction === "upload") {
+          await invoke("sftp_upload", { server: tab.server, local: sourcePath, remote: destPath, taskId, offset: offset || null });
+        } else {
+          await invoke("sftp_download", { server: tab.server, remote: sourcePath, local: destPath, taskId, offset: offset || null });
+        }
+      } catch (e: any) {
+        const errMsg = e?.toString() || "未知错误";
+        // 目标端存在部分数据则允许续传
+        const resumeOffset = await computeResumeOffset(direction, sourcePath, destPath);
+        transferUpdate(taskId, {
+          status: "error",
+          message: errMsg,
+          transferred: resumeOffset,
+          canResume: resumeOffset > 0,
+        });
+        const shortMsg = errMsg.length > 80 ? errMsg.slice(0, 80) + "…" : errMsg;
+        toast.error(`传输失败: ${shortMsg}`, item.name);
+      } finally {
+        unlisten();
       }
     },
-    [activeLocalPath, activeRemotePath, tab.server, trackTransfer]
+    [activeLocalPath, activeRemotePath, tab.server, trackTransfer, transferAdd, transferUpdate, computeResumeOffset]
+  );
+
+  // 传输多个文件：按设置中的并发数分批次并行（默认 3）
+  const handleTransfer = useCallback(
+    async (items: FileEntry[], direction: "upload" | "download", offset = 0) => {
+      const conc = Math.max(1, Math.min(10, settings.transfers.concurrency || 1));
+      for (let i = 0; i < items.length; i += conc) {
+        const batch = items.slice(i, i + conc);
+        await Promise.all(batch.map((it) => transferOne(it, direction, offset)));
+      }
+    },
+    [settings.transfers.concurrency, transferOne]
+  );
+
+  // 续传：对失败项从断点继续
+  const resumeTransfer = useCallback(
+    async (item: TransferItem) => {
+      if (!item.sourcePath || !item.destPath) return;
+      const offset = await computeResumeOffset(item.direction, item.sourcePath, item.destPath);
+      const it: FileEntry = {
+        name: item.name,
+        path: item.sourcePath,
+        kind: "file",
+        size: item.total || 0,
+        isSymlink: false,
+      };
+      // 以续传模式重跑（handleTransfer 内部会重新建 transfer 项，旧 error 项保留供对照）
+      await handleTransfer([it], item.direction, offset);
+    },
+    [computeResumeOffset, handleTransfer]
   );
 
   // 传输确认：检查目标文件是否存在
@@ -308,15 +357,12 @@ export function SftpView({ tab }: Props) {
 
       <div className="sftp-panels">
         {/* 本地面板 + 文件夹页签 */}
-        <div className="sftp-panel-col" onMouseDown={() => focusSide("local")}>
+        <div className="sftp-panel-col">
           <FolderTabBar
             accent="local"
             tabs={localTabs}
             activeId={activeLocalTabId}
-            onActivate={(id) => {
-              setActiveLocalTabId(id);
-              focusSide("local");
-            }}
+            onActivate={(id) => setActiveLocalTabId(id)}
             onClose={closeLocalTab}
             onAdd={addLocalTab}
           />
@@ -333,15 +379,12 @@ export function SftpView({ tab }: Props) {
         </div>
 
         {/* 远端面板 + 文件夹页签 */}
-        <div className="sftp-panel-col" onMouseDown={() => focusSide("remote")}>
+        <div className="sftp-panel-col">
           <FolderTabBar
             accent="remote"
             tabs={remoteTabs}
             activeId={activeRemoteTabId}
-            onActivate={(id) => {
-              setActiveRemoteTabId(id);
-              focusSide("remote");
-            }}
+            onActivate={(id) => setActiveRemoteTabId(id)}
             onClose={closeRemoteTab}
             onAdd={addRemoteTab}
           />
@@ -358,7 +401,7 @@ export function SftpView({ tab }: Props) {
         </div>
       </div>
 
-      <TransferList transfers={transfers} onClear={() => setTransfers([])} />
+      <TransferList transfers={transfers} onClear={transferClear} onResume={resumeTransfer} />
     </div>
   );
 }

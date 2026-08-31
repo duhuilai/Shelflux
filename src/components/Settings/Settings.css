@@ -49,6 +49,21 @@
   color: var(--fg-secondary);
 }
 
+.settings-number-input {
+  width: 72px;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--fg-primary);
+  background: var(--bg-input, var(--bg-elevated));
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  outline: none;
+}
+.settings-number-input:focus {
+  border-color: var(--accent-blue);
+}
+
 .settings-color-row {
   display: flex;
   gap: 6px;

@@ -217,11 +217,28 @@
   font-weight: 600;
 }
 
+.sftp-search-input {
+  width: 120px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--fg-primary);
+  background: var(--bg-input, var(--bg-elevated));
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  outline: none;
+  flex-shrink: 0;
+}
+.sftp-search-input:focus {
+  border-color: var(--accent-blue);
+}
+
 .sftp-panel-label {
   padding: 2px 8px;
   background: var(--gradient-primary-soft);
   color: var(--accent-blue);
   border-radius: 3px;
+  flex-shrink: 0;
   font-size: 10px;
 }
 
@@ -600,13 +617,24 @@
   font-size: 12px;
 }
 
+/* 权限列（八进制，如 755；无权限信息时显示 —） */
+.sftp-grid-cell.permissions,
+.sftp-grid-head.permissions {
+  flex: 0 0 92px;
+  width: 92px;
+  border-left: 1px solid var(--border-soft);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  justify-content: flex-start;
+}
+
 /* 传输队列 */
 .sftp-transfers {
   border-top: 1px solid var(--border-soft);
   background: var(--bg-elevated);
   max-height: 180px;
-  flex-shrink: 0;
-  min-width: 0;
+  flex-shrink: 0;  min-width: 0;
   display: flex;
   flex-direction: column;
   transition: max-height var(--duration-base) var(--ease);
@@ -632,6 +660,23 @@
 
 .sftp-transfers-header:hover {
   background: var(--bg-hover);
+}
+
+/* 聚合进度条（所有传输项整体百分比） */
+.sftp-transfers-aggregate {
+  height: 3px;
+  margin: 0 12px;
+  background: var(--bg-active);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sftp-transfers-aggregate-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-violet));
+  border-radius: 2px;
+  transition: width var(--duration-base) var(--ease);
 }
 
 .sftp-transfers-chevron {

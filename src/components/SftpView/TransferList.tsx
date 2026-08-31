@@ -1,26 +1,23 @@
 // 传输队列（可折叠）
 import { useState } from "react";
 import { formatSize, formatSpeed } from "../../utils/format";
+import type { TransferItem } from "../../types";
 import "./SftpView.css";
-
-export interface TransferItem {
-  id: string;
-  name: string;
-  direction: "upload" | "download";
-  transferred: number;
-  total: number;
-  speed: number;
-  status: "running" | "done" | "error" | "cancelled";
-  message?: string;
-}
 
 interface Props {
   transfers: TransferItem[];
   onClear: () => void;
+  onResume?: (item: TransferItem) => void;
 }
 
-export function TransferList({ transfers, onClear }: Props) {
+export function TransferList({ transfers, onClear, onResume }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  // 聚合进度（所有传输项的整体百分比）
+  const agg = transfers.reduce(
+    (a, t) => ({ total: a.total + (t.total || 0), done: a.done + (t.transferred || 0) }),
+    { total: 0, done: 0 }
+  );
+  const aggPct = agg.total > 0 ? Math.min(100, (agg.done / agg.total) * 100) : 0;
   if (transfers.length === 0) return null;
 
   return (
@@ -46,6 +43,14 @@ export function TransferList({ transfers, onClear }: Props) {
           清空
         </button>
       </div>
+      {!collapsed && agg.total > 0 && (
+        <div className="sftp-transfers-aggregate">
+          <div
+            className="sftp-transfers-aggregate-fill"
+            style={{ width: `${aggPct}%` }}
+          />
+        </div>
+      )}
       <div className="sftp-transfers-list">
         {transfers.map((t) => {
           const percent = t.total > 0 ? (t.transferred / t.total) * 100 : 0;
@@ -73,6 +78,15 @@ export function TransferList({ transfers, onClear }: Props) {
                   />
                 </div>
               </div>
+              {t.status === "error" && t.canResume && onResume && (
+                <button
+                  className="btn btn-ghost btn-sm sftp-transfer-resume"
+                  title="从断点继续传输"
+                  onClick={() => onResume(t)}
+                >
+                  续传
+                </button>
+              )}
             </div>
           );
         })}

@@ -418,13 +418,45 @@ export function Settings({ onClose }: Props) {
                       type="checkbox"
                       checked={settings.transfers.confirmOverwrite}
                       onChange={(e) =>
-                        setSettings({
-                          transfers: { confirmOverwrite: e.target.checked },
-                        })
+                      setSettings({
+                        transfers: { ...settings.transfers, confirmOverwrite: e.target.checked },
+                      })
                       }
                     />
                     目标文件已存在时询问
                   </label>
+                </div>
+                <div className="settings-row">
+                  <label>保留时间戳</label>
+                  <label className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={settings.transfers.preserveTimestamps}
+                      onChange={(e) =>
+                        setSettings({
+                          transfers: { ...settings.transfers, preserveTimestamps: e.target.checked },
+                        })
+                      }
+                    />
+                    上传后回写本地修改时间
+                  </label>
+                </div>
+                <div className="settings-row">
+                  <label>并发传输数</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    className="settings-number-input"
+                    value={settings.transfers.concurrency}
+                    onChange={(e) => {
+                      const n = Math.max(
+                        1,
+                        Math.min(10, parseInt(e.target.value || "1", 10) || 1)
+                      );
+                      setSettings({ transfers: { ...settings.transfers, concurrency: n } });
+                    }}
+                  />
                 </div>
               </div>
 
