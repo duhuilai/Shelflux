@@ -47,6 +47,147 @@
   animation: pulse 1s ease-in-out infinite;
 }
 
+/* 书签按钮 + 弹出面板 */
+.sftp-toolbar .bookmark-anchor {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sftp-toolbar .toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+  color: var(--fg-secondary);
+}
+
+.bookmark-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent-blue-soft);
+  color: var(--accent-blue);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.bookmark-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 41;
+  width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
+  padding: 6px;
+}
+
+.bookmark-popover-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 4px;
+}
+
+.bookmark-empty {
+  font-size: 12px;
+  color: var(--fg-muted);
+  padding: 14px 10px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.bookmark-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.bookmark-row:hover {
+  background: var(--bg-hover);
+}
+
+.bookmark-side {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.bookmark-side.local {
+  color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.12);
+}
+
+.bookmark-side.remote {
+  color: var(--accent-violet);
+  background: rgba(139, 92, 246, 0.12);
+}
+
+.bookmark-name {
+  flex-shrink: 0;
+  max-width: 120px;
+  font-size: 13px;
+  color: var(--fg-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookmark-path {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookmark-del {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 15px;
+  line-height: 1;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.bookmark-del:hover {
+  background: var(--color-error);
+  color: #fff;
+}
+
 .sftp-panels {
   flex: 1;
   display: flex;

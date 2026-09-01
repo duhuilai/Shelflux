@@ -5,6 +5,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { FileEntry, Server } from "../../types";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useUiStore } from "../../stores/uiStore";
+import { useBookmarkStore } from "../../stores/bookmarkStore";
 import { toast } from "../../stores/toastStore";
 import { joinPath, dirname, formatDate, formatSize, basename, extOf, uid } from "../../utils/format";
 import { PathBreadcrumb } from "./PathBreadcrumb";
@@ -110,6 +111,7 @@ export function FilePanel({
   const removeDefaultApp = useSettingsStore((s) => s.removeDefaultApp);
   const askConfirm = useUiStore((s) => s.askConfirm);
   const askPrompt = useUiStore((s) => s.askPrompt);
+  const addBookmark = useBookmarkStore((s) => s.add);
   const askOverwrite = useUiStore((s) => s.askOverwrite);
   const setClipboard = useUiStore((s) => s.setClipboard);
 
@@ -676,6 +678,30 @@ export function FilePanel({
   };
 
   const refresh = () => load(currentPath);
+
+  // 将当前面板路径加入书签（P2 书签功能）
+  const handleAddBookmark = async () => {
+    if (!currentPath) {
+      toast.warn("当前路径为空，无法收藏");
+      return;
+    }
+    const def = basename(currentPath) || currentPath;
+    const existing = useBookmarkStore.getState().byServer[server.id] || [];
+    if (existing.some((b) => b.side === side && b.path === currentPath)) {
+      toast.info("已收藏", `${def}（${side === "local" ? "本地" : "远端"}）`);
+      return;
+    }
+    const name = await askPrompt({
+      title: "添加书签",
+      message: `为当前${side === "local" ? "本地" : "远端"}路径添加书签`,
+      placeholder: "书签名称",
+      defaultValue: def,
+    });
+    if (name == null) return;
+    const finalName = name.trim() || def;
+    addBookmark(server.id, { name: finalName, side, path: currentPath });
+    toast.success("已添加书签", finalName);
+  };
 
   // 修改远端文件/目录权限（chmod，P1）
   const changePermissions = async (item: FileEntry) => {
@@ -1288,6 +1314,13 @@ export function FilePanel({
           onClick={newFolder}
         >
           <FolderPlusIcon />
+        </button>
+        <button
+          className="btn btn-ghost btn-icon tooltip"
+          data-tip="收藏当前路径"
+          onClick={handleAddBookmark}
+        >
+          <StarIcon />
         </button>
       </div>
 
@@ -1978,6 +2011,13 @@ function FolderPlusIcon() {
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
       <path d="M1.5 3.5C1.5 3 1.9 2.5 2.5 2.5h2.7c.4 0 .8.2 1 .5L7 4h4.5c.6 0 1 .4 1 1v5.5c0 .6-.4 1-1 1H2.5c-.6 0-1-.4-1-1V3.5z" stroke="currentColor" strokeWidth="1.1" fill="none" />
       <path d="M6.5 6.5v3M5 8h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+function StarIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M6.5 1.8l1.5 3.1 3.4.5-2.5 2.4.6 3.4-3-1.6-3 1.6.6-3.4L1.6 5.4l3.4-.5L6.5 1.8z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="none" />
     </svg>
   );
 }

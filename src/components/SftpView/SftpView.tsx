@@ -6,6 +6,7 @@ import type { Tab, FileEntry, TransferProgress, TransferItem } from "../../types
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useUiStore } from "../../stores/uiStore";
 import { useTransferStore } from "../../stores/transferStore";
+import { useBookmarkStore, useBookmarks, type Bookmark } from "../../stores/bookmarkStore";
 import { toast } from "../../stores/toastStore";
 import { joinPath, basename, uid } from "../../utils/format";
 import { FilePanel } from "./FilePanel";
@@ -342,6 +343,19 @@ export function SftpView({ tab }: Props) {
     });
   }, [activeRemoteTabId]);
 
+  // 书签（P2）：按服务器分组的快速导航
+  const bookmarks = useBookmarks(tab.server.id);
+  const removeBookmark = useBookmarkStore((s) => s.remove);
+  const [showBookmarks, setShowBookmarks] = useState(false);
+  const jumpToBookmark = useCallback(
+    (bm: Bookmark) => {
+      if (bm.side === "local") setLocalTabPath(activeLocalTabId, bm.path);
+      else setRemoteTabPath(activeRemoteTabId, bm.path);
+      setShowBookmarks(false);
+    },
+    [activeLocalTabId, activeRemoteTabId, setLocalTabPath, setRemoteTabPath]
+  );
+
   return (
     <div className="sftp-view">
       <div className="sftp-toolbar">
@@ -353,6 +367,54 @@ export function SftpView({ tab }: Props) {
         {runningCount > 0 && (
           <div className="transfer-summary active">{runningCount} 个任务进行中</div>
         )}
+        <div className="bookmark-anchor">
+          <button
+            className="btn btn-ghost toolbar-btn tooltip"
+            data-tip="书签"
+            onClick={() => setShowBookmarks((v) => !v)}
+          >
+            <BookmarkIcon />
+            <span>书签</span>
+            {bookmarks.length > 0 && <span className="bookmark-badge">{bookmarks.length}</span>}
+          </button>
+          {showBookmarks && (
+            <>
+              <div className="popover-backdrop" onClick={() => setShowBookmarks(false)} />
+              <div className="bookmark-popover">
+                <div className="bookmark-popover-title">
+                  书签 · {tab.server.alias || tab.server.host}
+                </div>
+                {bookmarks.length === 0 ? (
+                  <div className="bookmark-empty">暂无书签，使用面板上的 ☆ 收藏当前路径</div>
+                ) : (
+                  bookmarks.map((bm) => (
+                    <div key={bm.id} className="bookmark-row" onClick={() => jumpToBookmark(bm)}>
+                      <span className={`bookmark-side ${bm.side}`}>
+                        {bm.side === "local" ? "本地" : "远端"}
+                      </span>
+                      <span className="bookmark-name" title={bm.name}>
+                        {bm.name}
+                      </span>
+                      <span className="bookmark-path" title={bm.path}>
+                        {bm.path}
+                      </span>
+                      <button
+                        className="bookmark-del"
+                        title="删除书签"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeBookmark(tab.server.id, bm.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="sftp-panels">
@@ -403,6 +465,15 @@ export function SftpView({ tab }: Props) {
 
       <TransferList transfers={transfers} onClear={transferClear} onResume={resumeTransfer} />
     </div>
+  );
+}
+
+/** 书签图标 */
+function BookmarkIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M3 1.8h7c.4 0 .7.3.7.7v9l-4.2-2.3L2.3 11.5v-9c0-.4.3-.7.7-.7z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="none" />
+    </svg>
   );
 }
 
