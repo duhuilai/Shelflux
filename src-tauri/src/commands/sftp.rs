@@ -693,7 +693,7 @@ pub async fn sftp_download(
             sftp_download_file(&app, &sftp, &remote, &local, &task_id, offset).await
         };
         match result {
-            Ok(()) => return Ok(()),
+            Ok(_) => return Ok(()),
             Err(e) => {
                 let err_msg = e.to_string();
                 let is_session_err = err_msg.contains("session closed")
@@ -902,7 +902,7 @@ pub async fn sftp_upload(
             sftp_upload_file(&app, &sftp, &local, &remote, &task_id, offset, preserve).await
         };
         match result {
-            Ok(()) => return Ok(()),
+            Ok(_) => return Ok(()),
             Err(e) => {
                 let err_msg = e.to_string();
                 let is_session_err = err_msg.contains("session closed")
