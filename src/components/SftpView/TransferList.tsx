@@ -8,9 +8,11 @@ interface Props {
   transfers: TransferItem[];
   onClear: () => void;
   onResume?: (item: TransferItem) => void;
+  onRetryAll?: () => void;
+  onPauseAll?: () => void;
 }
 
-export function TransferList({ transfers, onClear, onResume }: Props) {
+export function TransferList({ transfers, onClear, onResume, onRetryAll, onPauseAll }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   // 聚合进度（所有传输项的整体百分比）
   const agg = transfers.reduce(
@@ -18,6 +20,8 @@ export function TransferList({ transfers, onClear, onResume }: Props) {
     { total: 0, done: 0 }
   );
   const aggPct = agg.total > 0 ? Math.min(100, (agg.done / agg.total) * 100) : 0;
+  const erroredCount = transfers.filter((t) => t.status === "error" && t.canResume).length;
+  const runningCount = transfers.filter((t) => t.status === "running").length;
   if (transfers.length === 0) return null;
 
   return (
@@ -33,6 +37,30 @@ export function TransferList({ transfers, onClear, onResume }: Props) {
         <span style={{ color: "var(--fg-muted)" }}>·</span>
         <span style={{ color: "var(--fg-muted)" }}>{transfers.length} 项</span>
         <div style={{ flex: 1 }} />
+        {runningCount > 0 && onPauseAll && (
+          <button
+            className="btn btn-ghost btn-sm"
+            title="暂停全部进行中的传输"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPauseAll();
+            }}
+          >
+            全部暂停
+          </button>
+        )}
+        {erroredCount > 0 && onRetryAll && (
+          <button
+            className="btn btn-ghost btn-sm"
+            title="重试全部失败且可续传的任务"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRetryAll();
+            }}
+          >
+            全部重试
+          </button>
+        )}
         <button
           className="btn btn-ghost btn-sm"
           onClick={(e) => {

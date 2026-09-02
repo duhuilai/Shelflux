@@ -153,6 +153,18 @@ export function SftpView({ tab }: Props) {
         }
       } catch (e: any) {
         const errMsg = e?.toString() || "未知错误";
+        // 若后端已发出 cancelled 事件（或返回取消哨兵），保持「已取消」状态而非降级为错误
+        const cur = useTransferStore.getState().transfers.find((t) => t.id === taskId);
+        if ((cur && cur.status === "cancelled") || errMsg.includes("TRANSFER_CANCELLED")) {
+          const resumeOffset = await computeResumeOffset(direction, sourcePath, destPath);
+          transferUpdate(taskId, {
+            status: "cancelled",
+            message: "已取消",
+            transferred: resumeOffset,
+            canResume: resumeOffset > 0,
+          });
+          return;
+        }
         // 目标端存在部分数据则允许续传
         const resumeOffset = await computeResumeOffset(direction, sourcePath, destPath);
         transferUpdate(taskId, {
@@ -199,6 +211,29 @@ export function SftpView({ tab }: Props) {
     },
     [computeResumeOffset, handleTransfer]
   );
+
+  // 全部重试：对失败且可续传的任务批量续传（按并发数分片）
+  const retryAllErrored = useCallback(async () => {
+    const errs = useTransferStore
+      .getState()
+      .transfers.filter((t) => t.status === "error" && t.canResume);
+    if (errs.length === 0) return;
+    const conc = Math.max(1, Math.min(10, settings.transfers.concurrency || 1));
+    for (let i = 0; i < errs.length; i += conc) {
+      const batch = errs.slice(i, i + conc);
+      await Promise.all(batch.map((t) => resumeTransfer(t)));
+    }
+  }, [resumeTransfer, settings.transfers.concurrency]);
+
+  // 全部暂停：对所有进行中的任务下发取消请求（后端 IO 循环轮询判定后提前结束）
+  const pauseAllRunning = useCallback(() => {
+    const running = useTransferStore
+      .getState()
+      .transfers.filter((t) => t.status === "running");
+    for (const t of running) {
+      invoke("cancel_transfer", { taskId: t.id }).catch(() => {});
+    }
+  }, []);
 
   // 传输确认：检查目标文件是否存在
   const checkAndTransfer = useCallback(
@@ -463,7 +498,13 @@ export function SftpView({ tab }: Props) {
         </div>
       </div>
 
-      <TransferList transfers={transfers} onClear={transferClear} onResume={resumeTransfer} />
+      <TransferList
+        transfers={transfers}
+        onClear={transferClear}
+        onResume={resumeTransfer}
+        onRetryAll={retryAllErrored}
+        onPauseAll={pauseAllRunning}
+      />
     </div>
   );
 }

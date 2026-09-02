@@ -107,6 +107,8 @@ export interface FileEntry {
   size: number;
   modified?: number;
   permissions?: number;
+  uid?: number;
+  gid?: number;
   isSymlink: boolean;
 }
 

@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::Mutex;
 
 use crate::types::ServerConfig;
@@ -31,6 +32,8 @@ pub struct SftpHandle {
     pub server: ServerConfig,
     /// 上次健康检查时间，用于缓存探测结果，避免每次操作都探测
     pub last_check: std::time::Instant,
+    /// 上次实际使用时间（连接池空闲 TTL 回收判定依据，不随健康检查刷新）
+    pub last_used: std::time::Instant,
 }
 
 /// 原始 SSH 连接句柄池（key = server.id）
@@ -47,4 +50,6 @@ pub struct AppState {
     pub sftp_sessions: Arc<Mutex<HashMap<String, SftpHandle>>>,
     /// SSH 原始连接池（key = server.id），Shell 和 SFTP 复用
     pub ssh_pool: Arc<Mutex<HashMap<String, Arc<tokio::sync::Mutex<russh::client::Handle<crate::commands::client_handler::ClientHandler>>>>>>,
+    /// 已请求取消的传输任务集合（key = task_id），IO 循环内轮询判定
+    pub cancelled_transfers: Arc<Mutex<HashSet<String>>>,
 }

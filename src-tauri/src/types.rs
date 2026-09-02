@@ -91,6 +91,8 @@ pub struct FileEntry {
     pub size: u64,
     pub modified: Option<i64>,
     pub permissions: Option<u32>,
+    pub uid: Option<u32>,
+    pub gid: Option<u32>,
     pub is_symlink: bool,
 }
 

@@ -45,6 +45,8 @@ pub async fn local_list(path: String) -> Result<Vec<FileEntry>, AppError> {
                         None
                     }
                 },
+                uid: None,
+                gid: None,
                 is_symlink,
             });
         }
@@ -236,6 +238,8 @@ pub async fn local_stat(path: String) -> Result<Option<FileEntry>, AppError> {
                     None
                 }
             },
+            uid: None,
+            gid: None,
             is_symlink: false,
         }))
     })

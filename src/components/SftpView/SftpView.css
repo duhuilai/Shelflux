@@ -975,3 +975,63 @@
   z-index: 1501;
   animation: fadeIn var(--duration-fast) var(--ease);
 }
+
+/* ===== 文件属性面板 ===== */
+.props-modal {
+  width: 420px;
+  max-width: 92vw;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+}
+.modal-close:hover {
+  color: var(--fg-primary);
+  background: var(--bg-hover);
+}
+
+.props-loading {
+  padding: 18px 4px;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+.props-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.props-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.props-row:last-child {
+  border-bottom: none;
+}
+
+.props-label {
+  flex: 0 0 76px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.props-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--fg-primary);
+  font-size: 13px;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}

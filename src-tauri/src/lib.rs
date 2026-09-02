@@ -45,6 +45,7 @@ pub fn run() {
             commands::sftp::sftp_list,
             commands::sftp::sftp_download,
             commands::sftp::sftp_upload,
+            commands::sftp::cancel_transfer,
             commands::sftp::open_remote_file,
             commands::sftp::open_remote_file_with,
             commands::sftp::sftp_mkdir,

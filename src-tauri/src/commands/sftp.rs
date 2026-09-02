@@ -18,6 +18,9 @@ use crate::state::AppState;
 use crate::types::{FileEntry, ServerConfig, TransferProgress};
 use tokio::sync::Mutex;
 
+/// 连接池空闲 TTL：超过该时长无任何操作（秒）则下次复用时重建连接，回收空闲资源。
+const IDLE_TTL_SECS: u64 = 300;
+
 /// 从会话池获取 SFTP 会话，不存在则创建。
 /// 复用前做健康检查：若底层连接已失效（空闲超时/网络中断），则重建会话，
 /// 避免直接用池中失效的会话导致"连不上"。
@@ -48,13 +51,28 @@ async fn get_sftp(
         };
 
         if healthy {
-            // 更新健康检查时间戳
-            let mut sessions = state.sftp_sessions.lock().await;
-            if let Some(h) = sessions.get_mut(&server.id) {
-                h.last_check = Instant::now();
+            // 连接池空闲 TTL 回收：超过阈值且无操作则剔除底层连接，下次重建
+            if handle.last_used.elapsed() > Duration::from_secs(IDLE_TTL_SECS) {
+                eprintln!(
+                    "[sftp] session for {} idle > {}s, recycling",
+                    server.id, IDLE_TTL_SECS
+                );
+                {
+                    let mut sessions = state.sftp_sessions.lock().await;
+                    sessions.remove(&server.id);
+                }
+                evict_ssh_handle(app, server).await;
+                // 继续下方重建逻辑
+            } else {
+                // 更新健康检查与时间戳
+                let mut sessions = state.sftp_sessions.lock().await;
+                if let Some(h) = sessions.get_mut(&server.id) {
+                    h.last_check = Instant::now();
+                    h.last_used = Instant::now();
+                }
+                drop(sessions);
+                return Ok(handle.session.clone());
             }
-            drop(sessions);
-            return Ok(handle.session.clone());
         }
 
         // 失效：从池中移除，下面重建
@@ -163,6 +181,7 @@ async fn open_sftp_session_inner(
         session: Arc::new(Mutex::new(sftp)),
         server: server.clone(),
         last_check: Instant::now(),
+        last_used: Instant::now(),
     })
 }
 
@@ -180,6 +199,20 @@ async fn evict_sftp_session(app: &AppHandle, server: &ServerConfig) {
     if sessions.remove(&server.id).is_some() {
         eprintln!("[sftp] evicted stale session for {}", server.id);
     }
+}
+
+/// 请求取消一个正在进行的传输任务（按 task_id 标记，由 IO 循环轮询判定）
+#[tauri::command]
+pub async fn cancel_transfer(app: AppHandle, task_id: String) -> Result<(), AppError> {
+    let state = app.state::<AppState>();
+    state.cancelled_transfers.lock().await.insert(task_id);
+    Ok(())
+}
+
+/// 判定指定 task_id 是否已被请求取消
+async fn is_cancelled(app: &AppHandle, task_id: &str) -> bool {
+    let state = app.state::<AppState>();
+    state.cancelled_transfers.lock().await.contains(task_id)
 }
 
 fn file_name_of(path: &str) -> String {
@@ -289,6 +322,8 @@ fn build_file_list(
                 size: meta.size.unwrap_or(0),
                 modified: meta.mtime.map(|m| m as i64),
                 permissions: meta.permissions,
+                uid: None,
+                gid: None,
                 is_symlink: ft.is_symlink(),
             }
         })
@@ -321,6 +356,8 @@ pub async fn sftp_stat(
                 size: meta.size.unwrap_or(0),
                 modified: meta.mtime.map(|m| m as i64),
                 permissions: meta.permissions,
+                uid: meta.uid,
+                gid: meta.gid,
                 is_symlink: meta.is_symlink(),
             }))
         }
@@ -785,6 +822,26 @@ async fn sftp_download_file(
         if n == 0 { break; }
         local_file.write_all(&buf[..n]).await.map_err(AppError::Io)?;
         done += n as u64;
+        // 取消判定：命中则提前结束并标记 cancelled
+        if is_cancelled(app, task_id).await {
+            emit_progress(
+                app,
+                task_id,
+                &TransferProgress {
+                    task_id: task_id.to_string(),
+                    transferred: done,
+                    total: done.max(total),
+                    speed: 0,
+                    status: "cancelled".into(),
+                    message: Some("已取消".into()),
+                },
+            );
+            {
+                let state = app.state::<AppState>();
+                state.cancelled_transfers.lock().await.remove(task_id);
+            }
+            return Err(AppError::Sftp("TRANSFER_CANCELLED".into()));
+        }
         let elapsed = started.elapsed().as_secs().max(1);
         emit_progress(app, task_id, &TransferProgress {
             task_id: task_id.to_string(), transferred: done, total, speed: done / elapsed,
@@ -978,6 +1035,26 @@ async fn sftp_upload_file(
             Err(_) => return Err(AppError::Sftp(format!("上传写入超时: {} (30s 无响应)", remote))),
         };
         done += n as u64;
+        // 取消判定：命中则提前结束并标记 cancelled
+        if is_cancelled(app, task_id).await {
+            emit_progress(
+                app,
+                task_id,
+                &TransferProgress {
+                    task_id: task_id.to_string(),
+                    transferred: done,
+                    total: done.max(total),
+                    speed: 0,
+                    status: "cancelled".into(),
+                    message: Some("已取消".into()),
+                },
+            );
+            {
+                let state = app.state::<AppState>();
+                state.cancelled_transfers.lock().await.remove(task_id);
+            }
+            return Err(AppError::Sftp("TRANSFER_CANCELLED".into()));
+        }
         let elapsed = started.elapsed().as_secs().max(1);
         emit_progress(app, task_id, &TransferProgress {
             task_id: task_id.to_string(), transferred: done, total, speed: done / elapsed,

@@ -10,6 +10,7 @@ import { toast } from "../../stores/toastStore";
 import { joinPath, dirname, formatDate, formatSize, basename, extOf, uid } from "../../utils/format";
 import { PathBreadcrumb } from "./PathBreadcrumb";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
+import { PropertiesDialog } from "./PropertiesDialog";
 
 interface Props {
   title: string;
@@ -69,6 +70,8 @@ export function FilePanel({
     item: FileEntry | null;
   } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  // 属性详情面板（P3）
+  const [propsItem, setPropsItem] = useState<FileEntry | null>(null);
   // 排序状态
   type SortKey = "name" | "size" | "modified" | "type";
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -981,6 +984,7 @@ export function FilePanel({
         { divider: true },
         { label: "重命名", icon: <EditIcon />, onClick: () => renameItem(item) },
         { label: "修改权限...", icon: <EditIcon />, onClick: () => changePermissions(item) },
+        { label: "属性", icon: <InfoIcon />, onClick: () => setPropsItem(item) },
         { divider: true },
         { label: "粘贴", icon: <PasteIcon />, onClick: () => void pasteItems(), disabled: !canPaste },
         { divider: true },
@@ -1136,6 +1140,7 @@ export function FilePanel({
       { label: "传输到对面", icon: <TransferIcon />, onClick: () => onTransfer([item]) },
       { label: "重命名", icon: <EditIcon />, onClick: () => renameItem(item) },
       { label: "修改权限...", icon: <EditIcon />, onClick: () => changePermissions(item) },
+      { label: "属性", icon: <InfoIcon />, onClick: () => setPropsItem(item) },
       { divider: true },
       { label: "复制", icon: <CopyIcon />, onClick: () => { setSelected(new Set([item.path])); copySelection(); } },
       { label: "复制路径", icon: <LinkIcon />, onClick: () => copyUrl(item) },
@@ -1470,6 +1475,15 @@ export function FilePanel({
           }}
         />
       )}
+
+      {propsItem && (
+        <PropertiesDialog
+          item={propsItem}
+          side={side}
+          server={server}
+          onClose={() => setPropsItem(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1494,6 +1508,16 @@ function SymlinkIcon() {
       <path d="M14 3l5 5h-4a1 1 0 01-1-1V3z" fill="#e0e0e0" stroke="#bbb" strokeWidth=".7"/>
       <circle cx="17" cy="17" r="5" fill="#4A90D9"/>
       <path d="M15 17l2-2 3 3m0-3l-3 3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M12 11v5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="12" cy="7.6" r="1.1" fill="currentColor" />
     </svg>
   );
 }
