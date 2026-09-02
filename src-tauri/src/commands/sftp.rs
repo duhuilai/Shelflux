@@ -250,7 +250,7 @@ pub async fn sftp_list(
     // 第一次尝试
     let sftp = get_sftp(&app, &server).await?;
     match do_read_dir(&sftp, path.as_str()).await {
-        Ok(entries) => return Ok(build_file_list(entries, &path)),
+        Ok(entries) => return Ok(build_file_list(&sftp, entries, &path).await),
         Err(e) => {
             let err_msg = e.to_string();
             eprintln!("[sftp] read_dir failed on first attempt: {err_msg}");
@@ -273,7 +273,7 @@ pub async fn sftp_list(
                     Ok(sftp2) => {
                         eprintln!("[sftp] retrying read_dir after reconnect");
                         match do_read_dir(&sftp2, path.as_str()).await {
-                            Ok(entries) => return Ok(build_file_list(entries, &path)),
+                            Ok(entries) => return Ok(build_file_list(&sftp2, entries, &path).await),
                             Err(e2) => {
                                 eprintln!("[sftp] read_dir also failed on retry: {e2}");
                                 evict_sftp_session(&app, &server).await;
@@ -294,40 +294,60 @@ pub async fn sftp_list(
 }
 
 /// 从 SFTP 目录条目构建 FileEntry 列表
-fn build_file_list(
+///
+/// 注意：部分 SFTP 服务端在 READDIR 响应中不返回权限位，会使
+/// `entry.file_type()` 退化为 Other，从而把子目录误判为文件、在 UI 上显示为
+/// 「文件」图标（用户易漏选）或在递归传输/删除时整棵子树被遗漏。因此对「非明确
+/// 文件」的条目一律用 stat 兜底确认真实类型；正常服务端（OpenSSH 等）返回了权限位，
+/// 走 is_dir/is_symlink/is_file 分支，零额外往返开销。
+async fn build_file_list(
+    sftp: &Arc<Mutex<SftpSession>>,
     entries: russh_sftp::client::fs::ReadDir,
     path: &str,
 ) -> Vec<FileEntry> {
-    let mut result: Vec<FileEntry> = entries
-        .map(|entry| {
-            let name = entry.file_name();
-            let full = if path.ends_with('/') {
-                format!("{}{}", path, name)
+    let mut result: Vec<FileEntry> = Vec::new();
+    for entry in entries {
+        let name = entry.file_name();
+        let full = if path.ends_with('/') {
+            format!("{}{}", path, name)
+        } else {
+            format!("{}/{}", path, name)
+        };
+        let meta = entry.metadata();
+        let ft = entry.file_type();
+        let (kind, is_symlink) = if ft.is_dir() {
+            ("dir", false)
+        } else if ft.is_symlink() {
+            ("symlink", true)
+        } else if ft.is_file() {
+            ("file", false)
+        } else {
+            // 权限位缺失导致类型退化：stat 兜底确认
+            let is_dir = sftp
+                .lock()
+                .await
+                .metadata(&full)
+                .await
+                .map(|m| m.is_dir())
+                .unwrap_or(false);
+            if is_dir {
+                ("dir", false)
             } else {
-                format!("{}/{}", path, name)
-            };
-            let meta = entry.metadata();
-            let ft = entry.file_type();
-            let kind = if ft.is_dir() {
-                "dir"
-            } else if ft.is_symlink() {
-                "symlink"
-            } else {
-                "file"
-            };
-            FileEntry {
-                name,
-                path: full,
-                kind: kind.to_string(),
-                size: meta.size.unwrap_or(0),
-                modified: meta.mtime.map(|m| m as i64),
-                permissions: meta.permissions,
-                uid: None,
-                gid: None,
-                is_symlink: ft.is_symlink(),
+                ("file", false)
             }
-        })
-        .collect();
+        };
+        result.push(FileEntry {
+            name,
+            path: full,
+            kind: kind.to_string(),
+            size: meta.size.unwrap_or(0),
+            modified: meta.mtime.map(|m| m as i64),
+            permissions: meta.permissions,
+            uid: None,
+            gid: None,
+            is_symlink,
+        });
+    }
 
     result.sort_by(|a, b| match (a.kind.as_str(), b.kind.as_str()) {
         ("dir", "file") | ("dir", "symlink") => std::cmp::Ordering::Less,
@@ -464,7 +484,20 @@ async fn sftp_remove_dir_all(
             format!("{path}/{name}")
         };
         let ft = entry.file_type();
-        if ft.is_dir() {
+        let is_dir = if ft.is_dir() {
+            true
+        } else if ft.is_file() {
+            false
+        } else {
+            // 权限位缺失导致类型退化：stat 兜底确认，避免子目录被当文件遗漏
+            sftp.lock()
+                .await
+                .metadata(&full)
+                .await
+                .map(|m| m.is_dir())
+                .unwrap_or(false)
+        };
+        if is_dir {
             Box::pin(sftp_remove_dir_all(sftp, &full)).await?;
         } else {
             sftp.lock().await
@@ -627,7 +660,20 @@ pub async fn sftp_copy(
                 }
                 let s = join_remote(&src_dir, &name);
                 let d = join_remote(&dst_dir, &name);
-                if entry.file_type().is_dir() {
+                let ft = entry.file_type();
+                let is_dir = if ft.is_dir() {
+                    true
+                } else if ft.is_file() {
+                    false
+                } else {
+                    sftp.lock()
+                        .await
+                        .metadata(&s)
+                        .await
+                        .map(|m| m.is_dir())
+                        .unwrap_or(false)
+                };
+                if is_dir {
                     queue.push((s, d));
                 } else {
                     copied += copy_one(&sftp, &s, &d).await?;
@@ -897,8 +943,25 @@ async fn sftp_download_dir(
         let local_path = std::path::Path::new(local_dir).join(&name)
             .to_string_lossy().to_string();
 
+        // 判定条目类型：部分 SFTP 服务端在 READDIR 响应中不返回权限位，会使
+        // file_type() 退化为 Other，从而把子目录误判为普通文件、整棵子树被静默遗漏。
+        // 因此仅对「明确为文件」的条目跳过 stat，其余（目录/符号链接/未知）一律用
+        // stat 兜底确认，确保子目录被正确递归。
         let ft = entry.file_type();
-        if ft.is_dir() {
+        let is_dir = if ft.is_dir() {
+            true
+        } else if ft.is_file() {
+            false
+        } else {
+            sftp.lock()
+                .await
+                .metadata(&remote_path)
+                .await
+                .map(|m| m.is_dir())
+                .unwrap_or(false)
+        };
+
+        if is_dir {
             done += Box::pin(sftp_download_dir(app, sftp, &remote_path, &local_path, task_id, 0)).await?;
         } else {
             let sz = sftp.lock().await
@@ -1121,8 +1184,21 @@ async fn sftp_upload_dir(
             format!("{}/{}", remote_dir, name)
         };
 
+        // 本地 FS 的 file_type 通常可靠，但符号链接/特殊文件可能退化；对「非明确文件」
+        // 的条目用本地 metadata 兜底，确保链接指向的目录也能被正确递归上传。
         let file_type = entry.file_type().await.map_err(AppError::Io)?;
-        if file_type.is_dir() {
+        let is_dir = if file_type.is_dir() {
+            true
+        } else if file_type.is_file() {
+            false
+        } else {
+            tokio::fs::metadata(&local_path)
+                .await
+                .map(|m| m.is_dir())
+                .unwrap_or(false)
+        };
+
+        if is_dir {
             done += Box::pin(sftp_upload_dir(app, sftp, &local_path, &remote_path, task_id, 0, preserve_mtime)).await?;
         } else {
             let sz = entry.metadata().await.map_err(AppError::Io)?.len();
