@@ -16,14 +16,17 @@ import { useTabStore } from "./stores/tabStore";
 import { useSettingsStore, resolveTheme } from "./stores/settingsStore";
 import { toast } from "./stores/toastStore";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 
 // 右键菜单项（支持级联子菜单）
 interface ContextMenuItem {
-  label: string;
+  /** 分隔线项无需 label */
+  label?: string;
   icon?: React.ReactNode;
   action?: () => void;
   danger?: boolean;
   divider?: boolean;
+  disabled?: boolean;
   submenu?: ContextMenuItem[];
 }
 
@@ -157,6 +160,77 @@ function ContextMenu() {
   );
 }
 
+/** 是否为文本输入框（受 execCommand / 选区操作支持） */
+function isTextInput(el: HTMLElement): el is HTMLInputElement | HTMLTextAreaElement {
+  return (
+    (el instanceof HTMLInputElement &&
+      !["checkbox", "radio", "button", "submit", "range", "color", "file"].includes(el.type)) ||
+    el instanceof HTMLTextAreaElement
+  );
+}
+
+/** 把文本插入光标处并触发 React onChange */
+async function pasteInto(el: HTMLElement) {
+  let text = "";
+  try {
+    text = await invoke<string>("read_from_clipboard");
+  } catch {
+    return;
+  }
+  if (!text) return;
+  if (isTextInput(el)) {
+    el.focus();
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    try {
+      el.setRangeText(text, start, end, "end");
+    } catch {
+      // number 等类型不支持 setRangeText，退化为直接追加
+      el.value = el.value + text;
+    }
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  } else {
+    // contenteditable
+    document.execCommand("insertText", false, text);
+  }
+}
+
+function selectAllIn(el: HTMLElement) {
+  if (isTextInput(el)) {
+    el.focus();
+    el.select();
+  } else {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }
+}
+
+/** 输入框右键：应用内编辑菜单（替代含“重新加载”的原生菜单） */
+function showEditContextMenu(e: MouseEvent, el: HTMLElement) {
+  const run = (fn: () => void) => () => {
+    el.focus();
+    fn();
+  };
+  const items: ContextMenuItem[] = [
+    { label: "撤销", action: run(() => document.execCommand("undo")) },
+    { label: "重做", action: run(() => document.execCommand("redo")) },
+    { divider: true },
+    { label: "剪切", action: run(() => document.execCommand("cut")) },
+    { label: "复制", action: run(() => document.execCommand("copy")) },
+    { label: "粘贴", action: () => void pasteInto(el) },
+    { divider: true },
+    { label: "全选", action: run(() => selectAllIn(el)) },
+  ];
+  document.dispatchEvent(
+    new CustomEvent("shelflux-context-menu", {
+      detail: { x: e.clientX, y: e.clientY, items },
+    })
+  );
+}
+
 export default function App() {
   const themeMode = useSettingsStore((s) => s.settings.theme);
   const effectiveTheme = useSettingsStore((s) => s.effectiveTheme);
@@ -189,9 +263,27 @@ export default function App() {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (target.closest(".xterm")) return;
+      // 显式声明保留原生菜单的区域
       if (target.closest(".allow-contextmenu")) return;
+      // 自定义菜单自身不拦截
       if (target.closest(".context-menu")) return;
+
+      // 禁用 WebView 原生右键菜单：
+      // 原生菜单含「重新加载 / 检查元素」等浏览器项，误触会重载整个应用并丢失全部会话，
+      // 与桌面客户端行为不符，因此全局屏蔽。
+      e.preventDefault();
+
+      // 终端区域：仅屏蔽原生菜单，不弹编辑菜单（终端自带粘贴快捷键，避免干扰）
+      if (target.closest(".xterm")) return;
+
+      // 输入类元素改用应用内编辑菜单（撤销/剪切/复制/粘贴/全选），
+      // 兼顾"禁用原生菜单"与"输入框仍需右键编辑能力"。
+      const editable = target.closest(
+        "input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), textarea, [contenteditable='true']"
+      ) as HTMLElement | null;
+      if (editable) {
+        showEditContextMenu(e, editable);
+      }
     };
     document.addEventListener("contextmenu", handler);
     return () => document.removeEventListener("contextmenu", handler);

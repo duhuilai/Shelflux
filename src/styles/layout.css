@@ -24,11 +24,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: #FDF4EC;
-}
-
-:root[data-theme="dark"] .content {
-  background: var(--bg-elevated);
+  background: var(--bg-base);
 }
 
 /* 空状态 */

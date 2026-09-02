@@ -475,11 +475,34 @@
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
   pointer-events: none;
+}
+
+/* 空目录占位：图标弱化、文字层级清晰，不抢文件列表视觉 */
+.sftp-files-empty svg {
+  opacity: 0.7;
+  transform: translateY(-2px);
+}
+
+/* 加载中转圈：主题色环 + 浅色轨道，随明暗主题自动切换 */
+.sftp-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent-blue);
+  animation: sftp-spin 0.7s linear infinite;
+}
+
+@keyframes sftp-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* 文件列表：flex 行布局，最稳的列宽分配方案 ——
@@ -508,32 +531,30 @@
   border-bottom: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  background: #ffffff;
-  transition: background var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease);
+  background: var(--bg-elevated);
+  transition: background var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease);
 }
 
-/* 斑马纹：偶数行略暖，增加层次感 */
+/* 斑马纹：偶数行用次级底色增加层次（随主题自动切换，避免硬编码色与灰蓝主色调冲突） */
 .sftp-grid-row:nth-child(even) {
-  background: #FAF8F5;
+  background: var(--bg-secondary);
 }
 
 .sftp-grid-row:hover {
   background: var(--bg-hover);
 }
 
+/* 选中态：用 inset 阴影替代 border-left，避免行内容横向抖动 3px */
 .sftp-grid-row.selected {
   background: var(--accent-blue-soft);
-  border-left: 3px solid var(--accent-blue);
+  box-shadow: inset 3px 0 0 var(--accent-blue);
 }
 
-/* 暗色模式下行间距和对比度优化 */
+/* 暗色模式：仅调整分隔线，背景色由主题变量自动切换。
+   注意：此处不要覆写 background —— 该选择器特异性 (0,3,0) 高于
+   `.sftp-grid-row:hover` / `.selected` (0,2,0)，会把悬停与选中反馈全部吃掉。 */
 :root[data-theme="dark"] .sftp-grid-row {
-  background: var(--bg-elevated);
   border-bottom-color: var(--border-soft);
-}
-
-:root[data-theme="dark"] .sftp-grid-row:nth-child(even) {
-  background: var(--bg-secondary);
 }
 
 :root[data-theme="dark"] .sftp-files {
@@ -772,8 +793,10 @@
 
 /* 传输队列 */
 .sftp-transfers {
-  border-top: 1px solid var(--border-soft);
+  border-top: 1px solid var(--border-default);
   background: var(--bg-elevated);
+  /* 向上投影，让传输队列从主内容区"浮起"，强化层级 */
+  box-shadow: 0 -6px 16px -8px rgba(15, 23, 42, 0.18);
   max-height: 180px;
   flex-shrink: 0;  min-width: 0;
   display: flex;
@@ -837,7 +860,7 @@
 }
 
 .sftp-transfer-row {
-  padding: 4px 12px;
+  padding: 6px 12px;
   display: grid;
   /* minmax(0, 1fr)：grid 轨道默认最小尺寸为 auto，会被长文件名撑宽 */
   grid-template-columns: minmax(0, 1fr) auto;
@@ -845,6 +868,12 @@
   gap: 6px;
   font-size: 11.5px;
   min-width: 0;
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.sftp-transfer-row:hover {
+  background: var(--bg-hover);
 }
 
 .sftp-transfer-info {
@@ -869,7 +898,7 @@
 
 .sftp-transfer-bar {
   height: 3px;
-  background: var(--scrollbar-thumb);
+  background: var(--bg-tertiary);
   border-radius: 2px;
   overflow: hidden;
   margin-top: 3px;

@@ -24,6 +24,10 @@
   --border-soft: rgba(15, 23, 42, 0.06);
   --border-default: rgba(15, 23, 42, 0.12);
   --border-light: #e2e6ef;
+  /* 强调边框：hover / 聚焦时的加强态（比 default 更实） */
+  --border-strong: rgba(15, 23, 42, 0.24);
+  /* 选中态浅底（配合 accent 边框使用） */
+  --btn-bg-hover: rgba(59, 130, 246, 0.12);
 
   /* 主色 —— 活力蓝（duNote 同款调性） */
   --accent-blue: #3b82f6;
@@ -100,6 +104,10 @@
   --border-soft: rgba(255, 255, 255, 0.06);
   --border-default: rgba(255, 255, 255, 0.11);
   --border-light: rgba(255, 255, 255, 0.08);
+  /* 强调边框：hover / 聚焦时的加强态 */
+  --border-strong: rgba(255, 255, 255, 0.22);
+  /* 选中态浅底 */
+  --btn-bg-hover: rgba(96, 165, 250, 0.18);
 
   /* 主色 —— 活力蓝 */
   --accent-blue: #60a5fa;

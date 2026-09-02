@@ -49,6 +49,20 @@ button:disabled {
   opacity: 0.5;
 }
 
+/* 键盘焦点环：仅键盘导航时显示，鼠标点击不干扰视觉 */
+:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+/* 输入框已有 border + box-shadow 反馈，无需再叠 outline */
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible,
+.modal-input:focus-visible {
+  outline: none;
+}
+
 a {
   color: var(--accent-blue);
   text-decoration: none;
@@ -174,6 +188,21 @@ a {
   width: 28px;
   height: 28px;
   position: relative;
+  border-radius: var(--radius-md);
+  transition: background var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease);
+}
+
+/* 图标按钮：主色高亮 + 轻微缩放，弥补无文字提示的反馈缺失 */
+.btn-icon:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+  color: var(--accent-blue);
+}
+
+.btn-icon:active:not(:disabled) {
+  transform: scale(0.94);
 }
 
 .btn-sm {

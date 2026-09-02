@@ -1342,13 +1342,19 @@ export function FilePanel({
         style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}
       >
         {loading ? (
-          <div className="sftp-files-loading">加载中...</div>
+          <div className="sftp-files-loading">
+            <span className="sftp-spinner" />
+            加载中...
+          </div>
         ) : error ? (
           <div className="sftp-files-loading" style={{ color: "var(--color-error)" }}>
             {error}
           </div>
         ) : entries.length === 0 ? (
-          <div className="sftp-files-empty">空目录</div>
+          <div className="sftp-files-empty">
+            <FolderOutlineIcon />
+            <span>空目录</span>
+          </div>
         ) : (
           <div className="sftp-files-list" ref={tableRef}>
             {/* 表头（sticky 吸顶） */}
@@ -1518,6 +1524,21 @@ function InfoIcon() {
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
       <path d="M12 11v5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
       <circle cx="12" cy="7.6" r="1.1" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** 空目录占位图标（线性风格，弱化不抢内容） */
+function FolderOutlineIcon() {
+  return (
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M3 7a2 2 0 0 1 2-2h3.6a2 2 0 0 1 1.4.6L11.4 7H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <path d="M3 11h18" stroke="currentColor" strokeWidth="1.3" opacity=".5" />
     </svg>
   );
 }

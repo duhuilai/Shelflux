@@ -33,6 +33,8 @@ export function SshView({ tab }: Props) {
   const [searchInfo, setSearchInfo] = useState<{ current: number; total: number } | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
+  // 重新连接入口（connect 定义在初始化 effect 内，用 ref 暴露给「重试」按钮）
+  const reconnectRef = useRef<(() => void) | null>(null);
 
   // 初始化终端
   useEffect(() => {
@@ -137,9 +139,11 @@ export function SshView({ tab }: Props) {
         term.writeln(`\r\n\x1b[31m连接失败: ${e}\x1b[0m`);
       }
     };
+    reconnectRef.current = connect;
     connect();
 
     return () => {
+      reconnectRef.current = null;
       resizeObserver.disconnect();
       const sid = sessionIdRef.current;
       if (sid) {
@@ -280,7 +284,12 @@ export function SshView({ tab }: Props) {
             </div>
             <button
               className="btn btn-primary btn-sm"
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                // 重新发起 SSH 连接（不再重载整个应用，避免丢失其它标签页与传输任务）
+                termRef.current?.clear();
+                setError(null);
+                reconnectRef.current?.();
+              }}
             >
               重试
             </button>
