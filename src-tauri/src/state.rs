@@ -31,9 +31,9 @@ pub struct SftpHandle {
     pub session: Arc<Mutex<russh_sftp::client::SftpSession>>,
     pub server: ServerConfig,
     /// 上次健康检查时间，用于缓存探测结果，避免每次操作都探测
-    pub last_check: std::time::Instant,
+    pub last_check: Instant,
     /// 上次实际使用时间（连接池空闲 TTL 回收判定依据，不随健康检查刷新）
-    pub last_used: std::time::Instant,
+    pub last_used: Instant,
 }
 
 /// 原始 SSH 连接句柄池（key = server.id）

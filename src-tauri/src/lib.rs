@@ -1,7 +1,7 @@
 // Shelflux 后端入口
 // 仅在 lib 中导出 run()，main.rs 简单地调用它。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -27,6 +27,7 @@ pub fn run() {
             forwards: Arc::new(Mutex::new(commands::forward::new_map())),
             sftp_sessions: Arc::new(Mutex::new(HashMap::new())),
             ssh_pool: Arc::new(Mutex::new(HashMap::new())),
+            cancelled_transfers: Arc::new(Mutex::new(HashSet::new())),
         })
         .setup(|app| {
             // known_hosts 持久化目录：<app_data_dir>/known_hosts.json

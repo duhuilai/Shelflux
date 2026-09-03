@@ -212,7 +212,8 @@ pub async fn cancel_transfer(app: AppHandle, task_id: String) -> Result<(), AppE
 /// 判定指定 task_id 是否已被请求取消
 async fn is_cancelled(app: &AppHandle, task_id: &str) -> bool {
     let state = app.state::<AppState>();
-    state.cancelled_transfers.lock().await.contains(task_id)
+    let cancelled = state.cancelled_transfers.lock().await.contains(task_id);
+    cancelled
 }
 
 fn file_name_of(path: &str) -> String {
