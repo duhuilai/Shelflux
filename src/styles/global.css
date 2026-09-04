@@ -127,7 +127,7 @@ a {
   gap: 6px;
   padding: 7px 12px;
   border-radius: var(--radius-md);
-  background: var(--bg-primary, var(--bg-elevated));
+  background: var(--bg-secondary);
   border: 1px solid var(--border-default);
   color: var(--fg-primary);
   font-size: 12px;
@@ -136,7 +136,7 @@ a {
 }
 
 .btn:hover:not(:disabled) {
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   border-color: var(--fg-muted);
 }
 
