@@ -1,6 +1,6 @@
 // 传输队列（可折叠）
 import { useState } from "react";
-import { formatSize, formatSpeed } from "../../utils/format";
+import { formatSize, formatSpeed, basename } from "../../utils/format";
 import type { TransferItem } from "../../types";
 import "./SftpView.css";
 
@@ -14,12 +14,18 @@ interface Props {
 
 export function TransferList({ transfers, onClear, onResume, onRetryAll, onPauseAll }: Props) {
   const [collapsed, setCollapsed] = useState(false);
-  // 聚合进度（所有传输项的整体百分比）
-  const agg = transfers.reduce(
-    (a, t) => ({ total: a.total + (t.total || 0), done: a.done + (t.transferred || 0) }),
-    { total: 0, done: 0 }
-  );
-  const aggPct = agg.total > 0 ? Math.min(100, (agg.done / agg.total) * 100) : 0;
+  // 聚合进度：取各项完成百分比的均值。
+  // 注意不能直接累加 transferred/total 再相除——删除项的单位是「项数」、
+  // 传输项的单位是「字节」，混合相加会得到无意义的比例。
+  const hasDelete = transfers.some((t) => t.direction === "delete");
+  const aggPct =
+    transfers.length > 0
+      ? transfers.reduce(
+          (sum, t) =>
+            sum + (t.total > 0 ? Math.min(100, (t.transferred / t.total) * 100) : 0),
+          0
+        ) / transfers.length
+      : 0;
   const erroredCount = transfers.filter((t) => t.status === "error" && t.canResume).length;
   const runningCount = transfers.filter((t) => t.status === "running").length;
   if (transfers.length === 0) return null;
@@ -33,7 +39,7 @@ export function TransferList({ transfers, onClear, onResume, onRetryAll, onPause
         <span className="sftp-transfers-chevron">
           <ChevronIcon />
         </span>
-        <span>传输队列</span>
+        <span>{hasDelete ? "任务队列" : "传输队列"}</span>
         <span style={{ color: "var(--fg-muted)" }}>·</span>
         <span style={{ color: "var(--fg-muted)" }}>{transfers.length} 项</span>
         <div style={{ flex: 1 }} />
@@ -71,7 +77,7 @@ export function TransferList({ transfers, onClear, onResume, onRetryAll, onPause
           清空
         </button>
       </div>
-      {!collapsed && agg.total > 0 && (
+      {!collapsed && transfers.length > 0 && (
         <div className="sftp-transfers-aggregate">
           <div
             className="sftp-transfers-aggregate-fill"
@@ -81,30 +87,48 @@ export function TransferList({ transfers, onClear, onResume, onRetryAll, onPause
       )}
       <div className="sftp-transfers-list">
         {transfers.map((t) => {
+          const isDelete = t.direction === "delete";
           const percent = t.total > 0 ? (t.transferred / t.total) * 100 : 0;
           return (
             <div className="sftp-transfer-row" key={t.id}>
               <div>
                 <div className="sftp-transfer-info">
-                  <span style={{ color: t.direction === "upload" ? "var(--accent-violet)" : "var(--accent-blue)" }}>
-                    {t.direction === "upload" ? "↑" : "↓"}
+                  <span
+                    style={{
+                      color: isDelete
+                        ? "var(--color-error)"
+                        : t.direction === "upload"
+                          ? "var(--accent-violet)"
+                          : "var(--accent-blue)",
+                    }}
+                  >
+                    {isDelete ? <TrashMiniIcon /> : t.direction === "upload" ? "↑" : "↓"}
                   </span>
                   <span className="sftp-transfer-name" title={t.message}>
                     {t.name}
                   </span>
                   <span className="sftp-transfer-meta">
-                    {formatSize(t.transferred)} / {formatSize(t.total)}
-                    {t.status === "running" && ` · ${formatSpeed(t.speed)}`}
+                    {isDelete
+                      ? `${t.transferred} / ${t.total} 项`
+                      : `${formatSize(t.transferred)} / ${formatSize(t.total)}`}
+                    {t.status === "running" &&
+                      (isDelete ? " · 删除中" : ` · ${formatSpeed(t.speed)}`)}
                     {t.status === "done" && " · 完成"}
                     {t.status === "error" && " · 失败"}
                   </span>
                 </div>
                 <div className="sftp-transfer-bar">
                   <div
-                    className={`sftp-transfer-bar-fill ${t.status}`}
+                    className={`sftp-transfer-bar-fill ${t.status} ${isDelete ? "delete" : ""}`}
                     style={{ width: `${Math.min(100, percent)}%` }}
                   />
                 </div>
+                {/* 删除任务：实时显示当前正在删除的文件 */}
+                {isDelete && t.status === "running" && t.message && (
+                  <div className="sftp-transfer-current" title={t.message}>
+                    {basename(t.message)}
+                  </div>
+                )}
               </div>
               {t.status === "error" && t.canResume && onResume && (
                 <button
@@ -120,6 +144,20 @@ export function TransferList({ transfers, onClear, onResume, onRetryAll, onPause
         })}
       </div>
     </div>
+  );
+}
+
+function TrashMiniIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+      <path
+        d="M1.5 2.5h7M4 2.5V1.5h2v1M2.5 2.5l.5 6h4l.5-6"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

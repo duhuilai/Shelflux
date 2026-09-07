@@ -42,6 +42,8 @@ button {
   border: 0;
   outline: 0;
   padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 button:disabled {
@@ -152,13 +154,13 @@ a {
 }
 
 .btn-primary:hover:not(:disabled) {
-  filter: brightness(1.06);
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
   box-shadow: 0 2px 8px rgba(10, 114, 239, 0.35);
 }
 
 .btn-primary:active:not(:disabled) {
   transform: translateY(1px);
-  filter: brightness(0.96);
+  background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%);
 }
 
 /* 危险操作按钮（删除等） */
@@ -170,7 +172,7 @@ a {
 }
 
 .btn-danger:hover:not(:disabled) {
-  filter: brightness(1.06);
+  background: #dc2626;
   box-shadow: 0 2px 8px rgba(220, 38, 38, 0.35);
 }
 
@@ -421,7 +423,7 @@ a {
 }
 
 .modal-btn-primary:hover {
-  filter: brightness(1.06);
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
 }
 
 /* ===== "打开方式"对话框（仿 xftp） ===== */
@@ -560,7 +562,7 @@ a {
 }
 
 .open-with-btn.primary:hover {
-  filter: brightness(1.06);
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
 }
 
 .open-with-btn:disabled {

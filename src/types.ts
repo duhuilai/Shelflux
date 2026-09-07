@@ -125,11 +125,13 @@ export interface TransferProgress {
 export interface TransferItem {
   id: string;
   name: string;
-  direction: "upload" | "download";
+  /** upload=上传，download=下载，delete=删除（删除任务的 transferred/total 单位为「项数」而非字节） */
+  direction: "upload" | "download" | "delete";
   transferred: number;
   total: number;
   speed: number;
   status: "running" | "done" | "error" | "cancelled";
+  /** 删除任务：后端回传的「当前正在处理的文件路径」 */
   message?: string;
   /** 续传用：源路径（上传=本地路径，下载=远端路径） */
   sourcePath?: string;

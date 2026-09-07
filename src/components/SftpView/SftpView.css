@@ -918,6 +918,23 @@
   background: var(--color-error);
 }
 
+/* 删除任务：进行中的进度条用危险色；done/error 沿用上面的状态色 */
+.sftp-transfer-bar-fill.delete:not(.done):not(.error) {
+  background: var(--color-error);
+}
+
+/* 删除任务：当前正在处理的文件名（完整路径见 title） */
+.sftp-transfer-current {
+  margin-top: 3px;
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* 右键菜单 */
 .context-menu {
   position: fixed;

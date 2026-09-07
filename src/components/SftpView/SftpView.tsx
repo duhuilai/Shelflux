@@ -197,6 +197,8 @@ export function SftpView({ tab }: Props) {
   // 续传：对失败项从断点继续
   const resumeTransfer = useCallback(
     async (item: TransferItem) => {
+      // 删除任务不存在续传语义
+      if (item.direction === "delete") return;
       if (!item.sourcePath || !item.destPath) return;
       const offset = await computeResumeOffset(item.direction, item.sourcePath, item.destPath);
       const it: FileEntry = {

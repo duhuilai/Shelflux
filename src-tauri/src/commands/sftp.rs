@@ -463,15 +463,21 @@ pub async fn sftp_create_file(
     Ok(())
 }
 
-/// 递归删除 SFTP 目录（先清空内容，再删目录本身）。
-async fn sftp_remove_dir_all(
+/// 递归收集待删除条目（前序遍历：父目录排在其所有子孙之前）。
+/// 后续逆序处理即可自然保证"先删子项，再删父目录"。
+/// 对权限位缺失导致类型退化的条目用 stat 兜底，避免子目录被当成文件而遗漏。
+async fn sftp_collect_delete(
     sftp: &Arc<Mutex<SftpSession>>,
-    path: &str,
+    dir: &str,
+    out: &mut Vec<(String, bool)>,
 ) -> Result<(), AppError> {
-    let entries = sftp.lock().await
-        .read_dir(path)
+    out.push((dir.to_string(), true));
+    let entries = sftp
+        .lock()
         .await
-        .map_err(|e| AppError::Sftp(format!("读取目录失败（递归删除）: {e}")))?;
+        .read_dir(dir)
+        .await
+        .map_err(|e| AppError::Sftp(format!("读取目录失败（删除）: {e}")))?;
 
     for entry in entries {
         let name = entry.file_name();
@@ -479,11 +485,7 @@ async fn sftp_remove_dir_all(
         if name == "." || name == ".." {
             continue;
         }
-        let full = if path.ends_with('/') {
-            format!("{path}{name}")
-        } else {
-            format!("{path}/{name}")
-        };
+        let full = join_remote(dir, &name);
         let ft = entry.file_type();
         let is_dir = if ft.is_dir() {
             true
@@ -499,20 +501,12 @@ async fn sftp_remove_dir_all(
                 .unwrap_or(false)
         };
         if is_dir {
-            Box::pin(sftp_remove_dir_all(sftp, &full)).await?;
+            Box::pin(sftp_collect_delete(sftp, &full, out)).await?;
         } else {
-            sftp.lock().await
-                .remove_file(&full)
-                .await
-                .map_err(|e| AppError::Sftp(format!("删除文件失败: {full}, {e}")))?;
+            out.push((full, false));
         }
     }
-
-    // 目录已清空，现在可以安全 remove_dir
-    sftp.lock().await
-        .remove_dir(path)
-        .await
-        .map_err(|e| AppError::Sftp(format!("删除目录失败: {path}, {e}")))
+    Ok(())
 }
 
 #[tauri::command]
@@ -520,6 +514,7 @@ pub async fn sftp_remove(
     app: AppHandle,
     server: ServerConfig,
     path: String,
+    task_id: Option<String>,
 ) -> Result<(), AppError> {
     let sftp = get_sftp(&app, &server).await?;
     let meta = sftp
@@ -527,13 +522,72 @@ pub async fn sftp_remove(
         .metadata(path.as_str())
         .await
         .map_err(|_| AppError::NotFound(path.clone()))?;
-    if meta.is_dir() {
-        sftp_remove_dir_all(&sftp, &path).await?;
-    } else {
+
+    // 单文件：直接删除并（如有 task_id）上报一次完成进度
+    if !meta.is_dir() {
         sftp.lock().await
             .remove_file(path.as_str())
             .await
             .map_err(|e| AppError::Sftp(format!("删除文件失败: {e}")))?;
+        if let Some(tid) = task_id.as_deref() {
+            emit_progress(
+                &app,
+                tid,
+                &TransferProgress {
+                    task_id: tid.to_string(),
+                    transferred: 1,
+                    total: 1,
+                    speed: 0,
+                    status: "done".to_string(),
+                    message: Some(path.clone()),
+                },
+            );
+        }
+        return Ok(());
+    }
+
+    // 目录：先收集全部条目以获得总数，再逆序删除（先子后父），逐项上报进度
+    let mut items: Vec<(String, bool)> = Vec::new();
+    sftp_collect_delete(&sftp, &path, &mut items).await?;
+    let total = items.len() as u64;
+    let mut done: u64 = 0;
+    let mut last_emit = Instant::now();
+
+    for (p, is_dir) in items.iter().rev() {
+        if *is_dir {
+            sftp.lock().await
+                .remove_dir(p.as_str())
+                .await
+                .map_err(|e| AppError::Sftp(format!("删除目录失败: {p}, {e}")))?;
+        } else {
+            sftp.lock().await
+                .remove_file(p.as_str())
+                .await
+                .map_err(|e| AppError::Sftp(format!("删除文件失败: {p}, {e}")))?;
+        }
+        done += 1;
+        if let Some(tid) = task_id.as_deref() {
+            // 节流：海量小文件时避免事件刷爆前端
+            if last_emit.elapsed() >= Duration::from_millis(100) || done == total {
+                emit_progress(
+                    &app,
+                    tid,
+                    &TransferProgress {
+                        task_id: tid.to_string(),
+                        transferred: done,
+                        total,
+                        speed: 0,
+                        status: if done == total {
+                            "done".to_string()
+                        } else {
+                            "running".to_string()
+                        },
+                        message: Some(p.clone()),
+                    },
+                );
+                last_emit = Instant::now();
+            }
+        }
     }
     Ok(())
 }
@@ -1228,7 +1282,7 @@ async fn sftp_upload_dir(
     Ok(done)
 }
 
-fn emit_progress(app: &AppHandle, task_id: &str, progress: &TransferProgress) {
+pub fn emit_progress(app: &AppHandle, task_id: &str, progress: &TransferProgress) {
     let _ = app.emit(&format!("transfer-progress-{}", task_id), progress.clone());
 }
 

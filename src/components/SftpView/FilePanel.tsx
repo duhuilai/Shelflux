@@ -2,10 +2,11 @@
 import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { FileEntry, Server } from "../../types";
+import type { FileEntry, Server, TransferProgress } from "../../types";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useUiStore } from "../../stores/uiStore";
 import { useBookmarkStore } from "../../stores/bookmarkStore";
+import { useTransferStore } from "../../stores/transferStore";
 import { toast } from "../../stores/toastStore";
 import { joinPath, dirname, formatDate, formatSize, basename, extOf, uid } from "../../utils/format";
 import { PathBreadcrumb } from "./PathBreadcrumb";
@@ -875,17 +876,67 @@ export function FilePanel({
     });
     if (!ok) return;
 
+    let failed = 0;
     try {
       for (const it of items) {
-        if (side === "local") {
-          await invoke("local_remove", { path: it.path });
-        } else {
-          await invoke("sftp_remove", { server, path: it.path });
+        const taskId = uid();
+        // 删除任务复用传输队列展示：进度单位为「项数」，message 为当前正在删除的文件
+        useTransferStore.getState().add({
+          id: taskId,
+          name: it.name,
+          direction: "delete",
+          transferred: 0,
+          total: 0,
+          speed: 0,
+          status: "running",
+          message: it.path,
+          sourcePath: it.path,
+        });
+
+        const unlisten = await listen<TransferProgress>(
+          `transfer-progress-${taskId}`,
+          (event) => {
+            const p = event.payload;
+            useTransferStore.getState().update(taskId, {
+              transferred: p.transferred,
+              total: p.total,
+              status: p.status,
+              message: p.message || undefined,
+            });
+            if (p.status === "done") {
+              setTimeout(() => useTransferStore.getState().remove(taskId), 5000);
+            }
+          }
+        );
+
+        try {
+          if (side === "local") {
+            await invoke("local_remove", { path: it.path, taskId });
+          } else {
+            await invoke("sftp_remove", { server, path: it.path, taskId });
+          }
+          // 兜底：后端 done 事件可能晚于 invoke 返回送达，此处补标记完成
+          const cur = useTransferStore.getState().transfers.find((t) => t.id === taskId);
+          if (cur && cur.status === "running") {
+            useTransferStore.getState().update(taskId, {
+              status: "done",
+              total: cur.total || 1,
+              transferred: cur.total || 1,
+            });
+            setTimeout(() => useTransferStore.getState().remove(taskId), 5000);
+          }
+        } catch (e: any) {
+          failed += 1;
+          const errMsg = e?.toString() || "未知错误";
+          useTransferStore.getState().update(taskId, { status: "error", message: errMsg });
+          toast.error("删除失败", `${it.name}: ${errMsg}`);
+        } finally {
+          unlisten();
         }
       }
       setSelected(new Set());
       await load(currentPath);
-      toast.success("已删除", `${items.length} 项`);
+      if (failed === 0) toast.success("已删除", `${items.length} 项`);
     } catch (e: any) {
       toast.error("删除失败", e.toString());
     }
