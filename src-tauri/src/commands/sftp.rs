@@ -418,13 +418,21 @@ async fn create_dir_all_remote(
     if normalized.is_empty() {
         return Ok(());
     }
+    // 是否绝对路径：split('/') 会把首个空分量（根斜杠）丢掉，
+    // 若不显式补回，绝对路径会被拼成相对路径，目录将建到服务端默认工作目录下
+    // ——表现为「提示成功但在目标位置找不到」。
+    let absolute = normalized.starts_with('/');
     let mut cur = String::new();
     for part in normalized.split('/') {
         if part.is_empty() {
             continue;
         }
         if cur.is_empty() {
-            cur = part.to_string();
+            cur = if absolute {
+                format!("/{part}")
+            } else {
+                part.to_string()
+            };
         } else {
             cur.push('/');
             cur.push_str(part);
@@ -443,6 +451,20 @@ async fn create_dir_all_remote(
                 return Err(AppError::Sftp(format!("创建目录失败: {cur}")));
             }
         }
+    }
+    // 收尾校验：确认目标路径确实存在且是目录。
+    // 缺少这一步时，任何"建到别处"的错位都会被静默当作成功返回。
+    let created = sftp
+        .lock()
+        .await
+        .metadata(normalized)
+        .await
+        .map(|m| m.is_dir())
+        .unwrap_or(false);
+    if !created {
+        return Err(AppError::Sftp(format!(
+            "创建目录失败（校验未通过）: {normalized}"
+        )));
     }
     Ok(())
 }
