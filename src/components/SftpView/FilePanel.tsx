@@ -192,12 +192,105 @@ export function FilePanel({
     return true;
   }, [selected, entries, side, server, setClipboard]);
 
+  // 计算粘贴目标路径；同名冲突时询问覆盖 / 重命名 / 跳过，返回 null 表示跳过该项
+  const resolveDest = useCallback(
+    async (name: string): Promise<string | null> => {
+      let destName = name;
+      let destPath = joinPath(currentPath, destName);
+      const exists = side === "local"
+        ? await invoke<boolean>("local_exists", { path: destPath })
+        : await invoke<boolean>("sftp_exists", { server, path: destPath });
+      if (exists) {
+        const choice = await askOverwrite({
+          title: "文件已存在",
+          message: `"${destName}" 已存在，是否覆盖或重命名？`,
+        });
+        if (choice === "skip") return null;
+        if (choice === "rename") {
+          const newName = await askPrompt({
+            title: "重命名副本",
+            message: "请输入新名称",
+            defaultValue: destName,
+          });
+          if (!newName || newName === destName) return null;
+          destName = newName;
+          destPath = joinPath(currentPath, newName);
+        }
+        // overwrite：直接复制，后端会覆盖既有文件
+      }
+      return destPath;
+    },
+    [currentPath, side, server, askOverwrite, askPrompt]
+  );
+
   // 粘贴剪贴板内容到当前目录（Ctrl+V）
   const pasteItems = useCallback(async () => {
     const clip = useUiStore.getState().clipboard;
     if (!clip || clip.items.length === 0) return;
 
-    // 跨侧粘贴：当作传输到对面处理
+    const srcServer = clip.server;
+    // 跨连接：复制源是远端，且源连接不是当前标签页的连接。
+    // 此时源路径只在源服务器上有效，不能沿用「当前标签页服务器」。
+    const crossServer =
+      clip.side === "remote" && !!srcServer && srcServer.id !== server.id;
+
+    if (crossServer) {
+      setLoading(true);
+      try {
+        if (side === "local") {
+          // 远端 A → 本地：必须从源服务器 A 下载
+          for (const item of clip.items) {
+            const dest = await resolveDest(item.name);
+            if (!dest) continue;
+            await invoke("sftp_download", {
+              server: srcServer,
+              remote: item.path,
+              local: dest,
+              taskId: uid(),
+              offset: null,
+            });
+          }
+        } else {
+          // 远端 A → 远端 B：经本地临时目录中继。
+          // sftp_copy 只能在单个连接内做服务端复制，无法跨连接使用。
+          const home = await invoke<string>("local_home");
+          const tmpBase = joinPath(home, ".shelflux-relay", uid());
+          try {
+            for (const item of clip.items) {
+              const dest = await resolveDest(item.name);
+              if (!dest) continue;
+              const tmp = joinPath(tmpBase, item.name);
+              await invoke("sftp_download", {
+                server: srcServer,
+                remote: item.path,
+                local: tmp,
+                taskId: uid(),
+                offset: null,
+              });
+              await invoke("sftp_upload", {
+                server,
+                local: tmp,
+                remote: dest,
+                taskId: uid(),
+                offset: null,
+                preserveMtime: settings.transfers.preserveTimestamps,
+              });
+            }
+          } finally {
+            await invoke("local_remove", { path: tmpBase, taskId: null }).catch(() => {});
+          }
+        }
+        await load(currentPath);
+        toast.success("已粘贴", `${clip.items.length} 项`);
+      } catch (e: any) {
+        toast.error("粘贴失败", e.toString());
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // 跨侧粘贴（同一连接内）：当作传输到对面处理
     if (clip.side !== side) {
       onTransfer(clip.items);
       toast.info("已传输到对面");
@@ -207,29 +300,8 @@ export function FilePanel({
     setLoading(true);
     try {
       for (const item of clip.items) {
-        let destName = item.name;
-        let destPath = joinPath(currentPath, destName);
-        const exists = side === "local"
-          ? await invoke<boolean>("local_exists", { path: destPath })
-          : await invoke<boolean>("sftp_exists", { server, path: destPath });
-        if (exists) {
-          const choice = await askOverwrite({
-            title: "文件已存在",
-            message: `"${destName}" 已存在，是否覆盖或重命名？`,
-          });
-          if (choice === "skip") continue;
-          if (choice === "rename") {
-            const newName = await askPrompt({
-              title: "重命名副本",
-              message: "请输入新名称",
-              defaultValue: destName,
-            });
-            if (!newName || newName === destName) continue;
-            destName = newName;
-            destPath = joinPath(currentPath, newName);
-          }
-          // overwrite：直接复制，后端会覆盖既有文件
-        }
+        const destPath = await resolveDest(item.name);
+        if (!destPath) continue;
         if (side === "local") {
           await invoke("local_copy", { from: item.path, to: destPath });
         } else {
@@ -248,7 +320,7 @@ export function FilePanel({
     } finally {
       setLoading(false);
     }
-  }, [side, currentPath, server, onTransfer, askOverwrite, askPrompt, load]);
+  }, [side, currentPath, server, onTransfer, resolveDest, load, settings.transfers.preserveTimestamps]);
 
   // 监听 Ctrl+C / Ctrl+V / Delete（仅作用于当前获得焦点的面板；输入框/弹窗中不拦截）
   useEffect(() => {
